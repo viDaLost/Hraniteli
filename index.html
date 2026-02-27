@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Хранитель Историй</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Onboarding -->
+    <section id="screen-onboarding" class="screen">
+      <img class="hero-img" src="assets/mascot_hello.png" alt="Маскот" />
+      <h1>Привет! Я Хранитель Историй</h1>
+      <p class="muted">
+        Я твой проводник и помощник в изучении священного описания.
+        Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
+      </p>
+
+      <div class="card">
+        <label>Имя</label>
+        <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
+
+        <label>Дата рождения</label>
+        <input id="inp-dob" type="date" />
+
+        <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
+        <div id="onboarding-error" class="error"></div>
+      </div>
+    </section>
+
+    <!-- Hello -->
+    <section id="screen-hello" class="screen hidden">
+      <img class="hero-img" src="assets/mascot_hi.png" alt="Маскот" />
+      <h1 id="hello-title">Отлично, рад познакомиться!</h1>
+      <p class="muted">А теперь давай окунёмся в мир знаний.</p>
+      <button id="btn-forward" class="btn primary">Вперёд</button>
+    </section>
+
+    <!-- Main menu -->
+    <section id="screen-menu" class="screen hidden">
+      <img class="hero-img" src="assets/menu_top.png" alt="Меню" />
+      <h1>Главное меню</h1>
+
+      <div class="menu-grid">
+        <button class="btn tile" id="btn-games">Библейские игры</button>
+        <button class="btn tile" id="btn-homework">Домашнее задание</button>
+        <button class="btn tile" id="btn-profile">Мой профиль</button>
+        <button class="btn tile admin hidden" id="btn-admin">Админ</button>
+      </div>
+    </section>
+
+    <!-- Games menu -->
+    <section id="screen-games" class="screen hidden">
+      <h1>Библейские игры</h1>
+      <div class="menu-grid">
+        <a class="btn tile" href="games/match.html">Найди пару</a>
+        <a class="btn tile" href="games/word.html">Найди слово</a>
+        <button class="btn" id="btn-games-back">← Главное меню</button>
+      </div>
+    </section>
+
+    <!-- Homework modal -->
+    <div id="modal-homework" class="modal hidden">
+      <div class="modal-card">
+        <h2>Домашнее задание</h2>
+        <p id="homework-text" class="muted"></p>
+        <button class="btn" id="btn-homework-close">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- Profile modal -->
+    <div id="modal-profile" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="profile-name" class="center big"></h2>
+        <div id="profile-dob" class="center muted"></div>
+
+        <div class="stars">
+          <div class="star-row">
+            <span>Библия</span>
+            <span class="badge blue"><span id="star-bible">0</span> ★</span>
+          </div>
+          <div class="star-row">
+            <span>Основы истины</span>
+            <span class="badge gold"><span id="star-truth">0</span> ★</span>
+          </div>
+          <div class="star-row">
+            <span>Поведение</span>
+            <span class="badge green"><span id="star-behavior">0</span> ★</span>
+          </div>
+        </div>
+
+        <button class="btn" id="btn-profile-close">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- Admin screen -->
+    <section id="screen-admin" class="screen hidden">
+      <h1>Админ-панель</h1>
+
+      <div class="card">
+        <h2>Домашнее задание (для всех)</h2>
+        <textarea id="admin-homework" rows="4" placeholder="Введите текст..."></textarea>
+        <button id="btn-admin-save-homework" class="btn primary">Сохранить</button>
+        <div id="admin-homework-msg" class="muted"></div>
+      </div>
+
+      <div class="card">
+        <h2>Пользователи</h2>
+        <div id="admin-users" class="admin-users"></div>
+      </div>
+
+      <button class="btn" id="btn-admin-back">← Главное меню</button>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
