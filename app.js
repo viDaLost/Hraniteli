@@ -25,39 +25,40 @@ const state = {
   profile: null,
 };
 
-function showScreen(name){
-  Object.values(screens).forEach(s => s.classList.add("hidden"));
+function showScreen(name) {
+  Object.values(screens).forEach((s) => s.classList.add("hidden"));
   screens[name].classList.remove("hidden");
 }
 
-function showModal(el){ el.classList.remove("hidden"); }
-function hideModal(el){ el.classList.add("hidden"); }
-
-// На iOS внутри Telegram иногда "клик" по кнопке в фиксированном overlay
-// может не отрабатывать стабильно. Поэтому:
-// 1) вешаем и click, и touchend на кнопку
-// 2) разрешаем закрытие по тапу на затемнение вокруг карточки
-function bindModalClose(modalEl, closeBtnEl){
-  if (!modalEl || !closeBtnEl) return;
-
-  const close = (ev) => {
-    ev?.preventDefault?.();
-    ev?.stopPropagation?.();
-    hideModal(modalEl);
-  };
-
-  closeBtnEl.addEventListener("click", close);
-  closeBtnEl.addEventListener("touchend", close, { passive: false });
-
-  modalEl.addEventListener("click", (ev) => {
-    if (ev.target === modalEl) hideModal(modalEl);
-  });
-  modalEl.addEventListener("touchend", (ev) => {
-    if (ev.target === modalEl) hideModal(modalEl);
-  }, { passive: true });
+function showModal(el) {
+  if (!el) return;
+  el.classList.remove("hidden");
+}
+function hideModal(el) {
+  if (!el) return;
+  el.classList.add("hidden");
 }
 
-function getTelegramIdentity(){
+/**
+ * Надёжный "тап" для iOS/Telegram WebView:
+ * - touchend (чтобы не было проблем с click)
+ * - click (для остальных)
+ */
+function addTap(el, handler) {
+  if (!el) return;
+
+  const wrapped = (e) => {
+    // чтобы не происходили "двойные" срабатывания и странности iOS
+    try { e.preventDefault?.(); } catch {}
+    try { e.stopPropagation?.(); } catch {}
+    handler(e);
+  };
+
+  el.addEventListener("touchend", wrapped, { passive: false });
+  el.addEventListener("click", wrapped);
+}
+
+function getTelegramIdentity() {
   // In Telegram WebApp, user is in initDataUnsafe.user
   if (!tg) return null;
   const u = tg.initDataUnsafe?.user;
@@ -65,47 +66,50 @@ function getTelegramIdentity(){
   return { id: String(u.id) };
 }
 
-async function api(action, payload = {}){
+async function api(action, payload = {}) {
   const res = await fetch(GAS_URL, {
     method: "POST",
-    headers: { "Content-Type":"application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       action,
       initData: state.initData,
       ...payload,
-    })
+    }),
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "API error");
   return data;
 }
 
-function localGet(key){ return localStorage.getItem(key) || ""; }
-function localSet(key,val){ localStorage.setItem(key, String(val)); }
+function localGet(key) {
+  return localStorage.getItem(key) || "";
+}
+function localSet(key, val) {
+  localStorage.setItem(key, String(val));
+}
 
-function onboardingValidate(){
+function onboardingValidate() {
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
   $("btn-confirm").disabled = !(name && dob);
 }
 
-async function boot(){
-  // На всякий случай: если по какой-то причине модалка видима при старте — прячем.
-  hideModal(modalHomework);
+async function boot() {
+  // ✅ ЖЁСТКО скрываем модалки на старте (фикс “модалка открывается сама”)
   hideModal(modalProfile);
+  hideModal(modalHomework);
 
   // Telegram init
   state.initData = tg?.initData || "";
   const ident = getTelegramIdentity();
 
-  // Для теста в браузере (без Telegram) можно временно подставить ID,
-  // но в реальном Telegram этого не нужно.
   state.tgId = ident?.id || null;
 
-  // Если открыли не из Telegram — покажем onboarding, но API не сработает (нет initData)
+  // If opened not from Telegram
   if (!state.tgId || !state.initData) {
     showScreen("onboarding");
-    $("onboarding-error").textContent = "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
+    $("onboarding-error").textContent =
+      "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
     return;
   }
 
@@ -115,9 +119,8 @@ async function boot(){
     state.isAdmin = !!p.isAdmin;
     state.profile = p.profile;
 
-    // If already registered -> go hello/menu
+    // If already registered -> go hello
     if (state.profile?.name && state.profile?.dob) {
-      // store locally too
       localSet("name", state.profile.name);
       localSet("dob", state.profile.dob);
 
@@ -134,7 +137,7 @@ async function boot(){
   }
 }
 
-async function doRegister(){
+async function doRegister() {
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
   $("onboarding-error").textContent = "";
@@ -148,26 +151,26 @@ async function doRegister(){
     localSet("dob", dob);
 
     $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
-
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
     showScreen("hello");
+    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
   } catch (e) {
     $("onboarding-error").textContent = e.message;
   }
 }
 
-async function openHomework(){
+/** ===== Homework ===== */
+async function openHomework() {
   try {
     const r = await api("getHomework");
-    $("homework-text").textContent = r.homework_text || "Пока нет задания 🙂";
-    showModal(modalHomework);
+    $("homework-text").textContent = r.homework_text || "Пока нет домашнего задания.";
   } catch (e) {
-    $("homework-text").textContent = "Не удалось загрузить задание.";
-    showModal(modalHomework);
+    $("homework-text").textContent = "Не удалось загрузить задание: " + e.message;
   }
+  showModal(modalHomework);
 }
 
-async function openProfile(){
+/** ===== Profile ===== */
+async function openProfile() {
   try {
     const r = await api("getProfile");
     state.isAdmin = !!r.isAdmin;
@@ -193,7 +196,7 @@ async function openProfile(){
 }
 
 /** ===== Admin ===== */
-async function openAdmin(){
+async function openAdmin() {
   showScreen("admin");
 
   // load homework
@@ -206,13 +209,13 @@ async function openAdmin(){
   await refreshAdminUsers();
 }
 
-async function refreshAdminUsers(){
+async function refreshAdminUsers() {
   const wrap = $("admin-users");
   wrap.innerHTML = "Загрузка...";
   try {
     const r = await api("adminListUsers");
     wrap.innerHTML = "";
-    r.users.forEach(u => {
+    r.users.forEach((u) => {
       const el = document.createElement("div");
       el.className = "admin-user";
       el.innerHTML = `
@@ -228,15 +231,15 @@ async function refreshAdminUsers(){
         <div class="grid">
           <div>
             <div class="small">Библия</div>
-            <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
+            <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible" />
           </div>
           <div>
             <div class="small">Основы истины</div>
-            <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
+            <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth" />
           </div>
           <div>
             <div class="small">Поведение</div>
-            <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
+            <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior" />
           </div>
         </div>
         <div class="small" data-msg></div>
@@ -250,7 +253,7 @@ async function refreshAdminUsers(){
         try {
           await api("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior });
           msg.textContent = "Готово ✅";
-        } catch(e){
+        } catch (e) {
           msg.textContent = "Ошибка: " + e.message;
         }
       });
@@ -262,37 +265,60 @@ async function refreshAdminUsers(){
   }
 }
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, (c)=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
   }[c]));
 }
 
 /** ===== Bindings ===== */
 $("inp-name").addEventListener("input", onboardingValidate);
 $("inp-dob").addEventListener("input", onboardingValidate);
-$("btn-confirm").addEventListener("click", doRegister);
+addTap($("btn-confirm"), doRegister);
 
-$("btn-forward").addEventListener("click", () => showScreen("menu"));
+addTap($("btn-forward"), () => showScreen("menu"));
 
-$("btn-games").addEventListener("click", () => showScreen("games"));
-$("btn-games-back").addEventListener("click", () => showScreen("menu"));
+addTap($("btn-games"), () => showScreen("games"));
+addTap($("btn-games-back"), () => showScreen("menu"));
 
-$("btn-homework").addEventListener("click", openHomework);
-bindModalClose(modalHomework, $("btn-homework-close"));
+addTap($("btn-homework"), openHomework);
+addTap($("btn-homework-close"), () => hideModal(modalHomework));
 
-$("btn-profile").addEventListener("click", openProfile);
-bindModalClose(modalProfile, $("btn-profile-close"));
+addTap($("btn-profile"), openProfile);
+addTap($("btn-profile-close"), () => hideModal(modalProfile));
 
-$("btn-admin").addEventListener("click", openAdmin);
-$("btn-admin-back").addEventListener("click", () => showScreen("menu"));
+// ✅ закрытие по тапу на затемнение (вне карточки)
+if (modalProfile) {
+  modalProfile.addEventListener("click", (e) => {
+    if (e.target === modalProfile) hideModal(modalProfile);
+  });
+  modalProfile.addEventListener("touchend", (e) => {
+    if (e.target === modalProfile) hideModal(modalProfile);
+  }, { passive: true });
+}
 
-$("btn-admin-save-homework").addEventListener("click", async () => {
+if (modalHomework) {
+  modalHomework.addEventListener("click", (e) => {
+    if (e.target === modalHomework) hideModal(modalHomework);
+  });
+  modalHomework.addEventListener("touchend", (e) => {
+    if (e.target === modalHomework) hideModal(modalHomework);
+  }, { passive: true });
+}
+
+addTap($("btn-admin"), openAdmin);
+addTap($("btn-admin-back"), () => showScreen("menu"));
+
+addTap($("btn-admin-save-homework"), async () => {
   $("admin-homework-msg").textContent = "Сохранение...";
   try {
     await api("adminSetHomework", { homework_text: $("admin-homework").value });
     $("admin-homework-msg").textContent = "Сохранено ✅";
-  } catch(e){
+  } catch (e) {
     $("admin-homework-msg").textContent = "Ошибка: " + e.message;
   }
 });
