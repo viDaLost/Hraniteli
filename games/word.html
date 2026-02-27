@@ -4,32 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Найди слово</title>
-  <link rel="stylesheet" href="../styles.css" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    .option{ font-weight:700; }
-    .ok{ outline:3px solid rgba(0,160,90,.35); }
-    .bad{ outline:3px solid rgba(185,72,62,.45); }
-  </style>
+  <script>
+    // Старую страницу игры оставили только как "переадресацию".
+    // Теперь всё работает как SPA без перезагрузок.
+    location.replace("../index.html#word");
+  </script>
 </head>
-<body>
-  <div class="app">
-    <h1>Найди слово</h1>
-    <p class="muted">Выбери слово, которое подходит в пропуск.</p>
-
-    <div class="card">
-      <div id="verse" style="font-size:18px; line-height:1.5;"></div>
-      <div id="ref" class="muted" style="margin-top:8px;"></div>
-    </div>
-
-    <div id="options" class="menu-grid"></div>
-
-    <div class="menu-grid">
-      <button class="btn" id="btn-next">Следующее</button>
-      <a class="btn" href="../index.html">← Главное меню</a>
-    </div>
-  </div>
-
-  <script src="word.js"></script>
-</body>
+<body></body>
 </html>
