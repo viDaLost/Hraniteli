@@ -9,58 +9,140 @@
 </head>
 <body>
   <div class="app">
+    <div class="viewport" id="viewport">
 
-    <!-- Onboarding -->
-    <section id="screen-onboarding" class="screen">
-      <img class="hero-img" src="assets/mascot_hello.png" alt="Маскот" />
-      <h1>Привет! Я Хранитель Историй</h1>
-      <p class="muted">
-        Я твой проводник и помощник в изучении священного описания.
-        Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
-      </p>
+      <!-- Loading (для уже зарегистрированных) -->
+      <section id="screen-loading" class="screen hidden center" data-route="loading">
+        <div class="spinner" aria-hidden="true"></div>
+        <h1 class="big">Загрузка…</h1>
+        <p class="muted">Готовлю главное меню</p>
+      </section>
 
-      <div class="card">
-        <label>Имя</label>
-        <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
+      <!-- Onboarding -->
+      <section id="screen-onboarding" class="screen" data-route="onboarding">
+        <img class="mascot-img" src="assets/mascot_hello.png" alt="Маскот" />
+        <h1>Привет! Я Хранитель Историй</h1>
+        <p class="muted">
+          Я твой проводник и помощник в изучении священного описания.
+          Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
+        </p>
 
-        <label>Дата рождения</label>
-        <input id="inp-dob" type="date" />
+        <div class="card">
+          <label>Имя</label>
+          <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
 
-        <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
-        <div id="onboarding-error" class="error"></div>
-      </div>
-    </section>
+          <label>Дата рождения</label>
+          <input id="inp-dob" type="date" />
 
-    <!-- Hello -->
-    <section id="screen-hello" class="screen hidden">
-      <img class="hero-img" src="assets/mascot_hi.png" alt="Маскот" />
-      <h1 id="hello-title">Отлично, рад познакомиться!</h1>
-      <p class="muted">А теперь давай окунёмся в мир знаний.</p>
-      <button id="btn-forward" class="btn primary">Вперёд</button>
-    </section>
+          <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
+          <div id="onboarding-error" class="error"></div>
+        </div>
+      </section>
 
-    <!-- Main menu -->
-    <section id="screen-menu" class="screen hidden">
-      <img class="hero-img" src="assets/menu_top.png" alt="Меню" />
-      <h1>Главное меню</h1>
+      <!-- Hello -->
+      <section id="screen-hello" class="screen hidden" data-route="hello">
+        <img class="mascot-img" src="assets/mascot_hi.png" alt="Маскот" />
+        <h1 id="hello-title">Отлично, рад познакомиться!</h1>
+        <p class="muted">А теперь давай окунёмся в мир знаний.</p>
+        <button id="btn-forward" class="btn primary">Вперёд</button>
+      </section>
 
-      <div class="menu-grid">
-        <button class="btn tile" id="btn-games">Библейские игры</button>
-        <button class="btn tile" id="btn-homework">Домашнее задание</button>
-        <button class="btn tile" id="btn-profile">Мой профиль</button>
-        <button class="btn tile admin hidden" id="btn-admin">Админ</button>
-      </div>
-    </section>
+      <!-- Main menu -->
+      <section id="screen-menu" class="screen hidden" data-route="menu">
+        <img class="mascot-img" src="assets/mascot_hi.png" alt="Меню" />
+        <h1>Главное меню</h1>
 
-    <!-- Games menu -->
-    <section id="screen-games" class="screen hidden">
-      <h1>Библейские игры</h1>
-      <div class="menu-grid">
-        <a class="btn tile" href="games/match.html">Найди пару</a>
-        <a class="btn tile" href="games/word.html">Найди слово</a>
-        <button class="btn" id="btn-games-back">← Главное меню</button>
-      </div>
-    </section>
+        <div class="menu-grid">
+          <button class="btn tile" id="btn-games">Библейские игры</button>
+          <button class="btn tile" id="btn-homework">Домашнее задание</button>
+          <button class="btn tile" id="btn-profile">Мой профиль</button>
+          <button class="btn tile admin hidden" id="btn-admin">Админ</button>
+        </div>
+      </section>
+
+      <!-- Games menu -->
+      <section id="screen-games" class="screen hidden" data-route="games">
+        <h1>Библейские игры</h1>
+        <div class="menu-grid">
+          <button class="btn tile" data-nav="match">Найди пару</button>
+          <button class="btn tile" data-nav="word">Найди слово</button>
+          <button class="btn" id="btn-games-back">← Главное меню</button>
+        </div>
+      </section>
+
+      <!-- Match game (SPA screen) -->
+      <section id="screen-match" class="screen hidden" data-route="match">
+        <img class="mascot-img" src="assets/mascot_hi.png" alt="Найди пару" />
+        <h1>Помоги Ною найти пару</h1>
+        <p class="muted">Для каждого животного нужна пара 🙂</p>
+
+        <div id="match-pick" class="card">
+          <h2>Выбор игрового поля</h2>
+          <div class="menu-grid">
+            <button class="btn tile" data-match-size="4">4 × 4</button>
+            <button class="btn tile" data-match-size="6">6 × 6</button>
+            <button class="btn tile" data-match-size="8">8 × 8</button>
+            <button class="btn" data-back>← Назад</button>
+            <button class="btn" data-nav="menu">Главное меню</button>
+          </div>
+        </div>
+
+        <div id="match-game" class="hidden">
+          <div class="top-actions">
+            <button class="btn" id="match-btn-back">← Выбор поля</button>
+            <button class="btn" data-nav="menu">Главное меню</button>
+          </div>
+          <div id="match-board" class="board"></div>
+        </div>
+
+        <div id="match-win" class="modal hidden">
+          <div class="modal-card center">
+            <img class="mascot-img" src="assets/win_popup.png" alt="Победа" />
+            <h2>Молодец! Ты нашёл всем пару!</h2>
+            <button class="btn primary" id="match-btn-win-close">Закрыть</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Word game (SPA screen) -->
+      <section id="screen-word" class="screen hidden" data-route="word">
+        <h1>Найди слово</h1>
+        <p class="muted">Выбери слово, которое подходит в пропуск.</p>
+
+        <div class="card">
+          <div id="word-verse" class="verse"></div>
+          <div id="word-ref" class="muted word-ref"></div>
+        </div>
+
+        <div id="word-options" class="menu-grid"></div>
+
+        <div class="menu-grid">
+          <button class="btn" id="word-btn-next">Следующее</button>
+          <button class="btn" data-back>← Назад</button>
+          <button class="btn" data-nav="menu">Главное меню</button>
+        </div>
+      </section>
+
+      <!-- Admin screen -->
+      <section id="screen-admin" class="screen hidden" data-route="admin">
+        <h1>Админ-панель</h1>
+
+        <div class="card">
+          <h2>Домашнее задание (для всех)</h2>
+          <textarea id="admin-homework" rows="4" placeholder="Введите текст..."></textarea>
+          <button id="btn-admin-save-homework" class="btn primary">Сохранить</button>
+          <div id="admin-homework-msg" class="muted"></div>
+        </div>
+
+        <div class="card">
+          <h2>Пользователи</h2>
+          <div id="admin-users" class="admin-users"></div>
+        </div>
+
+        <button class="btn" id="btn-admin-back">← Главное меню</button>
+      </section>
+
+    </div><!-- /viewport -->
 
     <!-- Homework modal -->
     <div id="modal-homework" class="modal hidden">
@@ -96,27 +178,10 @@
       </div>
     </div>
 
-    <!-- Admin screen -->
-    <section id="screen-admin" class="screen hidden">
-      <h1>Админ-панель</h1>
+  </div><!-- /app -->
 
-      <div class="card">
-        <h2>Домашнее задание (для всех)</h2>
-        <textarea id="admin-homework" rows="4" placeholder="Введите текст..."></textarea>
-        <button id="btn-admin-save-homework" class="btn primary">Сохранить</button>
-        <div id="admin-homework-msg" class="muted"></div>
-      </div>
-
-      <div class="card">
-        <h2>Пользователи</h2>
-        <div id="admin-users" class="admin-users"></div>
-      </div>
-
-      <button class="btn" id="btn-admin-back">← Главное меню</button>
-    </section>
-
-  </div>
-
-  <script src="app.js"></script>
+  <script src="games/match.js" defer></script>
+  <script src="games/word.js" defer></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
