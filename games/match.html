@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Найди пару</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    .board{ display:grid; gap:10px; margin-top:10px; }
+    .card-tile{
+      aspect-ratio: 1 / 1;
+      border-radius:16px;
+      border:1px solid rgba(44,36,26,.18);
+      background:rgba(255,255,255,.7);
+      display:grid;
+      place-items:center;
+      font-size:28px;
+      user-select:none;
+      cursor:pointer;
+      position:relative;
+      overflow:hidden;
+    }
+    .card-tile.done{ outline:3px solid rgba(0,160,90,.35); }
+    .card-tile.wrong{ outline:3px solid rgba(185,72,62,.45); }
+    .shake{ animation:shake .25s linear; }
+    @keyframes shake{
+      0%{ transform:translateX(0) }
+      25%{ transform:translateX(-6px) }
+      50%{ transform:translateX(6px) }
+      75%{ transform:translateX(-4px) }
+      100%{ transform:translateX(0) }
+    }
+    .top-actions{ display:flex; gap:10px; margin-top:12px; }
+    .top-actions .btn{ margin-top:0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <img class="hero-img" src="../assets/match_top.png" alt="Найди пару" />
+    <h1>Помоги Ною найти пару</h1>
+    <p class="muted">Для каждого животного нужна пара 🙂</p>
+
+    <div id="screen-pick" class="card">
+      <h2>Выбор игрового поля</h2>
+      <button class="btn tile" data-size="4">4 × 4</button>
+      <button class="btn tile" data-size="6">6 × 6</button>
+      <button class="btn tile" data-size="8">8 × 8</button>
+      <a class="btn" href="../index.html">← Главное меню</a>
+    </div>
+
+    <div id="screen-game" class="hidden">
+      <div class="top-actions">
+        <button class="btn" id="btn-back">← Выбор поля</button>
+        <a class="btn" href="../index.html">Главное меню</a>
+      </div>
+      <div id="board" class="board"></div>
+    </div>
+
+    <div id="win" class="modal hidden">
+      <div class="modal-card center">
+        <img class="hero-img" src="../assets/win_popup.png" alt="Победа" />
+        <h2>Молодец! Ты нашёл всем пару!</h2>
+        <button class="btn primary" id="btn-win-close">Закрыть</button>
+      </div>
+    </div>
+
+  </div>
+  <script src="match.js"></script>
+</body>
+</html>
