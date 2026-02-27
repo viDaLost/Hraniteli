@@ -1,15 +1,21 @@
-// app.js (SPA + animations + Telegram haptics)
+// app.js (FAST UI + cache + dedupe)
+// Always start with LOADING -> check server -> route
+// SPA + animations + Telegram haptics
 
-// ❗ ВАЖНО: сюда вставь Web app URL ИЗ ТОГО Apps Script, где ты поменял verifyTelegramInitData_()
-// Deploy -> Manage deployments -> Web app URL (заканчивается на /exec)
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyXbnpE6gEiaLbLM23GpzSbyXhWwZShVEVYTJxJ2agSEB2-ytDBBdji5T9WA8zcJ5R4/exec";
 const POLL_MS = 10_000;
+
+// Кэш (клиентский) — чтобы UI отвечал сразу
+const CACHE_TTL = {
+  getProfile: 60_000,        // 60 сек
+  adminListUsers: 20_000,    // 20 сек
+  getHomework: 60_000,       // 60 сек
+};
 
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
 
 const $ = (id) => document.getElementById(id);
-
 const viewport = $("viewport");
 
 const screens = {
@@ -34,24 +40,16 @@ const state = {
 };
 
 let pollTimer = null;
-let navStack = []; // {route}
+let navStack = [];
 let isTransitioning = false;
 
 // -----------------------
 // Telegram Haptics helpers
 // -----------------------
-function hImpact(style = "light") {
-  try { tg?.HapticFeedback?.impactOccurred?.(style); } catch {}
-}
-function hNotify(type = "success") {
-  try { tg?.HapticFeedback?.notificationOccurred?.(type); } catch {}
-}
-function hSelect() {
-  try { tg?.HapticFeedback?.selectionChanged?.(); } catch {}
-}
+function hImpact(style = "light") { try { tg?.HapticFeedback?.impactOccurred?.(style); } catch {} }
+function hNotify(type = "success") { try { tg?.HapticFeedback?.notificationOccurred?.(type); } catch {} }
+function hSelect() { try { tg?.HapticFeedback?.selectionChanged?.(); } catch {} }
 
-// -----------------------
-// Small UI helpers
 // -----------------------
 function showModal(el){ el.classList.remove("hidden"); }
 function hideModal(el){ el.classList.add("hidden"); }
@@ -59,23 +57,17 @@ function isVisible(el){ return el && !el.classList.contains("hidden"); }
 
 function bindModalClose(modalEl, closeBtnEl){
   if (!modalEl || !closeBtnEl) return;
-
   const close = (ev) => {
     ev?.preventDefault?.();
     ev?.stopPropagation?.();
     hImpact("light");
     hideModal(modalEl);
   };
-
   closeBtnEl.addEventListener("click", close);
   closeBtnEl.addEventListener("touchend", close, { passive: false });
 
-  modalEl.addEventListener("click", (ev) => {
-    if (ev.target === modalEl) hideModal(modalEl);
-  });
-  modalEl.addEventListener("touchend", (ev) => {
-    if (ev.target === modalEl) hideModal(modalEl);
-  }, { passive: true });
+  modalEl.addEventListener("click", (ev) => { if (ev.target === modalEl) hideModal(modalEl); });
+  modalEl.addEventListener("touchend", (ev) => { if (ev.target === modalEl) hideModal(modalEl); }, { passive: true });
 }
 
 function localGet(key){ return localStorage.getItem(key) || ""; }
@@ -88,12 +80,6 @@ function getTelegramIdentity(){
   return { id: String(u.id) };
 }
 
-/**
- * ✅ Самый стабильный запрос для iOS Telegram WebView:
- * - НИКАКИХ headers (чтобы не было preflight/OPTIONS)
- * - redirect follow
- * - таймаут
- */
 async function api(action, payload = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
@@ -101,32 +87,21 @@ async function api(action, payload = {}) {
   try {
     const res = await fetch(GAS_URL, {
       method: "POST",
-      body: JSON.stringify({
-        action,
-        initData: state.initData,
-        ...payload,
-      }),
+      body: JSON.stringify({ action, initData: state.initData, ...payload }),
       cache: "no-store",
       signal: controller.signal,
       redirect: "follow",
     });
 
     const text = await res.text();
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`);
 
     let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error("Сервер вернул не-JSON: " + text.slice(0, 160));
-    }
+    try { data = JSON.parse(text); }
+    catch { throw new Error("Сервер вернул не-JSON: " + text.slice(0, 160)); }
 
     if (!data.ok) throw new Error(data.error || "API error");
     return data;
-
   } catch (e) {
     if (e?.name === "AbortError") throw new Error("Таймаут запроса (15с)");
     throw new Error(e?.message || "Load failed");
@@ -142,19 +117,90 @@ function escapeHtml(s){
 }
 
 // -----------------------
+// ✅ Дедупликация и TTL-кэш запросов
+// -----------------------
+const inFlight = new Map(); // key -> Promise
+const memCache = new Map(); // key -> {ts, data}
+
+function cacheKey(action, payload){
+  // payload тут обычно небольшой; для стабильности берём JSON
+  return action + "::" + JSON.stringify(payload || {});
+}
+
+async function apiFast(action, payload = {}, { ttl = 0, force = false } = {}) {
+  const key = cacheKey(action, payload);
+
+  if (!force && ttl > 0) {
+    const hit = memCache.get(key);
+    if (hit && (Date.now() - hit.ts) < ttl) {
+      return hit.data;
+    }
+  }
+
+  if (inFlight.has(key)) {
+    return inFlight.get(key);
+  }
+
+  const p = api(action, payload)
+    .then((data) => {
+      if (ttl > 0) memCache.set(key, { ts: Date.now(), data });
+      return data;
+    })
+    .finally(() => inFlight.delete(key));
+
+  inFlight.set(key, p);
+  return p;
+}
+
+function setCachedProfile(p){
+  state.isAdmin = !!p.isAdmin;
+  state.profile = p.profile;
+
+  if (state.profile?.name) localSet("name", state.profile.name);
+  if (state.profile?.dob) localSet("dob", state.profile.dob);
+
+  if (state.profile) {
+    localSet("profile_cache", JSON.stringify({
+      ts: Date.now(),
+      isAdmin: state.isAdmin,
+      profile: state.profile
+    }));
+  }
+}
+
+function getCachedProfile(){
+  // 1) state
+  if (state.profile?.name && state.profile?.dob) return { isAdmin: state.isAdmin, profile: state.profile };
+
+  // 2) localStorage cache
+  try{
+    const raw = localGet("profile_cache");
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj?.profile) return null;
+
+    // допускаем кэш до 24 часов, потому что это просто имя/дата/звёзды
+    if (Date.now() - (obj.ts || 0) > 24*60*60*1000) return null;
+    return { isAdmin: !!obj.isAdmin, profile: obj.profile };
+  }catch{
+    return null;
+  }
+}
+
+// -----------------------
 // SPA Router + Transitions
 // -----------------------
 function routeFromHash(){
   const h = (location.hash || "").replace(/^#/, "");
-  if (!h) return "menu";
+  if (!h) return "loading";
   const parts = h.split("/").filter(Boolean);
-  return parts[0] || "menu";
+  return parts[0] || "loading";
 }
 
 function canAccess(route){
   const hasProfile = !!(state.profile?.name && state.profile?.dob);
   if (hasProfile) return true;
-  return ["onboarding","hello","loading"].includes(route);
+  return ["loading","onboarding","hello"].includes(route);
 }
 
 function setActiveScreen(route, direction = "forward"){
@@ -240,13 +286,9 @@ function setActiveScreen(route, direction = "forward"){
 
 function navigate(route, { replace = false } = {}){
   if (!screens[route]) route = "menu";
-
-  if (!canAccess(route)) {
-    route = "onboarding";
-  }
+  if (!canAccess(route)) route = "onboarding";
 
   const current = navStack.length ? navStack[navStack.length - 1].route : null;
-  const direction = (replace || !current) ? "forward" : "forward";
 
   if (replace) {
     if (navStack.length) navStack[navStack.length - 1] = { route };
@@ -259,16 +301,15 @@ function navigate(route, { replace = false } = {}){
   if (replace) history.replaceState({ route }, "", newHash);
   else history.pushState({ route }, "", newHash);
 
-  setActiveScreen(route, direction);
+  setActiveScreen(route, "forward");
   onRouteEnter(route);
 }
 
 function goBack(){
   if (navStack.length <= 1) {
-    if (navStack[0]?.route !== "menu") navigate("menu", { replace: true });
+    navigate("menu", { replace: true });
     return;
   }
-
   const current = navStack[navStack.length - 1]?.route;
   if (current === "match") window.MatchGame?.reset?.();
   history.back();
@@ -314,28 +355,18 @@ function onRouteEnter(route){
   } catch {}
 
   if (route === "match" && !gamesInited.match) {
-    window.MatchGame?.init?.({
-      hImpact,
-      hNotify,
-      hSelect,
-      onNav: navigate,
-      onBack: goBack,
-    });
+    window.MatchGame?.init?.({ hImpact, hNotify, hSelect, onNav: navigate, onBack: goBack });
     gamesInited.match = true;
   }
 
   if (route === "word" && !gamesInited.word) {
-    window.WordGame?.init?.({
-      hImpact,
-      hNotify,
-      hSelect,
-    });
+    window.WordGame?.init?.({ hImpact, hNotify, hSelect });
     gamesInited.word = true;
   }
 }
 
 // -----------------------
-// Global fancy button effects
+// Fancy button effects
 // -----------------------
 function addRipple(btn, x, y){
   const r = document.createElement("span");
@@ -361,9 +392,6 @@ function wireFancyButtons(){
   }, { passive: true });
 }
 
-// -----------------------
-// Swipe back gesture (soft)
-// -----------------------
 function wireSwipeBack(){
   if (!viewport) return;
 
@@ -372,7 +400,7 @@ function wireSwipeBack(){
   let startY = 0;
 
   viewport.addEventListener("pointerdown", (ev) => {
-    if (ev.clientX > 18) return; // left-edge only
+    if (ev.clientX > 18) return;
     tracking = true;
     startX = ev.clientX;
     startY = ev.clientY;
@@ -408,11 +436,9 @@ function onboardingValidate(){
 
 function applyProfileToUI(profile){
   if (!profile) return;
-
   if (isVisible(modalProfile)){
     $("profile-name").textContent = profile.name || localGet("name") || "Пользователь";
     $("profile-dob").textContent = profile.dob || localGet("dob") || "";
-
     $("star-bible").textContent = profile.bible ?? 0;
     $("star-truth").textContent = profile.truth ?? 0;
     $("star-behavior").textContent = profile.behavior ?? 0;
@@ -423,13 +449,10 @@ function applyHomeworkToUI(homeworkText){
   if (isVisible(modalHomework)){
     $("homework-text").textContent = homeworkText || "Пока нет задания 🙂";
   }
-
   if (screens.admin && screens.admin.classList.contains("is-active")){
     const ta = $("admin-homework");
     const isEditing = document.activeElement === ta;
-    if (ta && !isEditing){
-      ta.value = homeworkText || "";
-    }
+    if (ta && !isEditing) ta.value = homeworkText || "";
   }
 }
 
@@ -442,78 +465,69 @@ async function pollTick(){
   if (document.hidden) return;
   if (!state.initData) return;
 
+  // ✅ profile — берём быстро через TTL кэш
   try{
-    const p = await api("getProfile");
-    state.isAdmin = !!p.isAdmin;
-    state.profile = p.profile;
-
-    if (state.profile?.name) localSet("name", state.profile.name);
-    if (state.profile?.dob) localSet("dob", state.profile.dob);
-
+    const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
+    setCachedProfile(p);
     applyProfileToUI(state.profile);
+    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
   }catch{}
 
   const needHomework = isVisible(modalHomework) || (screens.admin && screens.admin.classList.contains("is-active"));
   if (needHomework){
     try{
-      const hw = await api("getHomework");
+      const hw = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
       applyHomeworkToUI(hw.homework_text || "");
     }catch{}
   }
 }
 
+/**
+ * boot: всегда loading, затем быстрый getProfile
+ */
 async function boot(){
   hideModal(modalHomework);
   hideModal(modalProfile);
 
-  navStack = [];
+  navStack = [{ route: "loading" }];
+  history.replaceState({ route: "loading" }, "", "#loading");
+  setActiveScreen("loading", "forward");
+  onRouteEnter("loading");
 
   state.initData = tg?.initData || "";
   const ident = getTelegramIdentity();
   state.tgId = ident?.id || null;
 
-  const knownUser = !!(localGet("name") && localGet("dob"));
-  let firstRoute = routeFromHash();
-
   if (!state.tgId || !state.initData) {
-    firstRoute = "onboarding";
-    navStack = [{ route: firstRoute }];
-    setActiveScreen(firstRoute, "forward");
-    onRouteEnter(firstRoute);
+    navigate("onboarding", { replace: true });
     $("onboarding-error").textContent =
       "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
     return;
   }
 
-  if (knownUser && firstRoute === "menu") {
-    firstRoute = "loading";
+  // ✅ мгновенно наполняем state из локального кэша (если есть)
+  const cached = getCachedProfile();
+  if (cached?.profile) {
+    state.isAdmin = !!cached.isAdmin;
+    state.profile = cached.profile;
+    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
   }
 
-  navStack = [{ route: firstRoute }];
-  history.replaceState({ route: firstRoute }, "", `#${firstRoute}`);
-  setActiveScreen(firstRoute, "forward");
-  onRouteEnter(firstRoute);
+  startPolling();
 
   try {
-    const p = await api("getProfile");
-    state.isAdmin = !!p.isAdmin;
-    state.profile = p.profile;
-
-    if (state.profile?.name) localSet("name", state.profile.name);
-    if (state.profile?.dob) localSet("dob", state.profile.dob);
+    // ✅ быстрый запрос с TTL-кэшем
+    const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
+    setCachedProfile(p);
+    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
 
     if (state.profile?.name && state.profile?.dob) {
-      if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-      startPolling();
       navigate("menu", { replace: true });
       return;
     }
-
-    startPolling();
     navigate("onboarding", { replace: true });
 
   } catch (e) {
-    startPolling();
     navigate("onboarding", { replace: true });
     $("onboarding-error").textContent = e.message;
     hNotify("error");
@@ -526,9 +540,8 @@ async function doRegister(){
   $("onboarding-error").textContent = "";
 
   try {
-    const r = await api("register", { name, dob });
-    state.isAdmin = !!r.isAdmin;
-    state.profile = r.profile;
+    const r = await apiFast("register", { name, dob }, { force: true });
+    setCachedProfile(r);
 
     localSet("name", name);
     localSet("dob", dob);
@@ -543,98 +556,137 @@ async function doRegister(){
   }
 }
 
-async function openHomework(){
+// ✅ Профиль: открываем МГНОВЕННО, данные — сразу из кэша, затем обновляем с сервера
+async function openProfile(){
+  // 1) показать модалку мгновенно
+  showModal(modalProfile);
+  hImpact("light");
+
+  // 2) заполнить из state/localStorage сразу
+  const cached = getCachedProfile();
+  if (cached?.profile) {
+    $("profile-name").textContent = cached.profile.name || localGet("name") || "Пользователь";
+    $("profile-dob").textContent = cached.profile.dob || localGet("dob") || "";
+    $("star-bible").textContent = cached.profile.bible ?? 0;
+    $("star-truth").textContent = cached.profile.truth ?? 0;
+    $("star-behavior").textContent = cached.profile.behavior ?? 0;
+  } else {
+    $("profile-name").textContent = localGet("name") || "Пользователь";
+    $("profile-dob").textContent = localGet("dob") || "";
+  }
+
+  // 3) в фоне — обновить (но не спамить запросами)
   try {
-    const r = await api("getHomework");
+    const r = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
+    setCachedProfile(r);
+    applyProfileToUI(state.profile);
+    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
+  } catch {}
+}
+
+// ✅ Домашка: открываем сразу, текст — сначала "загрузка", затем кэш/сервер
+async function openHomework(){
+  showModal(modalHomework);
+  $("homework-text").textContent = "Загрузка…";
+
+  try {
+    const r = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
     $("homework-text").textContent = r.homework_text || "Пока нет задания 🙂";
   } catch (e) {
-    $("homework-text").textContent = "Не удалось загрузить задание: " + e.message;
+    $("homework-text").textContent = "Не удалось загрузить: " + e.message;
   }
-  showModal(modalHomework);
 }
 
-async function openProfile(){
-  try {
-    const r = await api("getProfile");
-    state.isAdmin = !!r.isAdmin;
-    state.profile = r.profile;
-    applyProfileToUI(state.profile);
-  } catch {}
-  showModal(modalProfile);
-}
-
+// ✅ Админ: экран показываем мгновенно, список пользователей — скелетон, потом данные
 async function openAdmin(){
   navigate("admin");
+  hImpact("light");
 
+  // домашка админа — быстро через TTL кэш
+  $("admin-homework").value = "Загрузка...";
   try {
-    const hw = await api("getHomework");
+    const hw = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
     $("admin-homework").value = hw.homework_text || "";
-  } catch {}
+  } catch {
+    $("admin-homework").value = "";
+  }
 
-  await refreshAdminUsers();
+  await refreshAdminUsersFast();
 }
 
-async function refreshAdminUsers(){
+async function refreshAdminUsersFast(){
   const wrap = $("admin-users");
-  wrap.innerHTML = "Загрузка...";
+  // быстрый скелетон
+  wrap.innerHTML = `
+    <div class="admin-user"><div class="small">Загрузка пользователей…</div></div>
+    <div class="admin-user"><div class="small">Почти готово…</div></div>
+  `;
+
   try {
-    const r = await api("adminListUsers");
-    wrap.innerHTML = "";
-    r.users.forEach(u => {
-      const el = document.createElement("div");
-      el.className = "admin-user";
-      el.innerHTML = `
-        <div class="top">
-          <div>
-            <div><b>${escapeHtml(u.name || "(без имени)")}</b></div>
-            <div class="small">${escapeHtml(u.dob || "")}</div>
-            <div class="id">tg_id: ${escapeHtml(u.tg_id)}</div>
-          </div>
-          <button class="btn" data-act="save">Сохранить</button>
-        </div>
-
-        <div class="grid">
-          <div>
-            <div class="small">Библия</div>
-            <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
-          </div>
-          <div>
-            <div class="small">Основы истины</div>
-            <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
-          </div>
-          <div>
-            <div class="small">Поведение</div>
-            <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
-          </div>
-        </div>
-        <div class="small" data-msg></div>
-      `;
-      el.querySelector('[data-act="save"]').addEventListener("click", async () => {
-        const bible = Number(el.querySelector('[data-k="bible"]').value || 0);
-        const truth = Number(el.querySelector('[data-k="truth"]').value || 0);
-        const behavior = Number(el.querySelector('[data-k="behavior"]').value || 0);
-        const msg = el.querySelector("[data-msg]");
-        msg.textContent = "Сохранение...";
-        try {
-          await api("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior });
-          msg.textContent = "Готово ✅";
-          hNotify("success");
-        } catch(e){
-          msg.textContent = "Ошибка: " + e.message;
-          hNotify("error");
-        }
-      });
-
-      wrap.appendChild(el);
-    });
+    const r = await apiFast("adminListUsers", {}, { ttl: CACHE_TTL.adminListUsers });
+    renderAdminUsers(r.users);
   } catch (e) {
     wrap.innerHTML = "Ошибка загрузки пользователей: " + escapeHtml(e.message);
   }
 }
 
-// -----------------------
-// Global navigation bindings (data-nav / data-back)
-// -----------------------
+function renderAdminUsers(users){
+  const wrap = $("admin-users");
+  wrap.innerHTML = "";
+
+  users.forEach(u => {
+    const el = document.createElement("div");
+    el.className = "admin-user";
+    el.innerHTML = `
+      <div class="top">
+        <div>
+          <div><b>${escapeHtml(u.name || "(без имени)")}</b></div>
+          <div class="small">${escapeHtml(u.dob || "")}</div>
+          <div class="id">tg_id: ${escapeHtml(u.tg_id)}</div>
+        </div>
+        <button class="btn" data-act="save">Сохранить</button>
+      </div>
+
+      <div class="grid">
+        <div>
+          <div class="small">Библия</div>
+          <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
+        </div>
+        <div>
+          <div class="small">Основы истины</div>
+          <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
+        </div>
+        <div>
+          <div class="small">Поведение</div>
+          <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
+        </div>
+      </div>
+      <div class="small" data-msg></div>
+    `;
+
+    el.querySelector('[data-act="save"]').addEventListener("click", async () => {
+      const bible = Number(el.querySelector('[data-k="bible"]').value || 0);
+      const truth = Number(el.querySelector('[data-k="truth"]').value || 0);
+      const behavior = Number(el.querySelector('[data-k="behavior"]').value || 0);
+      const msg = el.querySelector("[data-msg]");
+      msg.textContent = "Сохранение...";
+
+      try {
+        await apiFast("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior }, { force: true });
+        // Сбросим кэш списка пользователей, чтобы при следующем открытии был свежий
+        memCache.forEach((_, k) => { if (k.startsWith("adminListUsers::")) memCache.delete(k); });
+        msg.textContent = "Готово ✅";
+        hNotify("success");
+      } catch(e){
+        msg.textContent = "Ошибка: " + e.message;
+        hNotify("error");
+      }
+    });
+
+    wrap.appendChild(el);
+  });
+}
+
 function wireNavDelegation(){
   document.addEventListener("click", (ev) => {
     const navEl = ev.target?.closest?.("[data-nav]");
@@ -644,7 +696,6 @@ function wireNavDelegation(){
       if (r) navigate(r);
       return;
     }
-
     const backEl = ev.target?.closest?.("[data-back]");
     if (backEl){
       ev.preventDefault();
@@ -678,7 +729,9 @@ $("btn-admin-back").addEventListener("click", () => navigate("menu"));
 $("btn-admin-save-homework").addEventListener("click", async () => {
   $("admin-homework-msg").textContent = "Сохранение...";
   try {
-    await api("adminSetHomework", { homework_text: $("admin-homework").value });
+    await apiFast("adminSetHomework", { homework_text: $("admin-homework").value }, { force: true });
+    // сбрасываем кэш домашки
+    memCache.forEach((_, k) => { if (k.startsWith("getHomework::")) memCache.delete(k); });
     $("admin-homework-msg").textContent = "Сохранено ✅";
     hNotify("success");
   } catch(e){
