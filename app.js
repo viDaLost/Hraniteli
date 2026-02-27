@@ -1,6 +1,6 @@
 // app.js
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyvBrRd7lXpHfzVZlB7s7EOl7gVIv8aCt-haf5l4o2ciGkZSa_NRFK4ajwiusidPnGuDQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzdQPZRXOHs9UdGs5_r258zBLNw6bVMh5T_NbyX7_QCRmlBUIrt2tvR_NFHxlvLg9O39Q/exec";
 const POLL_MS = 10_000;
 
 const tg = window.Telegram?.WebApp;
