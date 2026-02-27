@@ -11,15 +11,15 @@
   <div class="app">
     <div class="viewport" id="viewport">
 
-      <!-- Loading (для уже зарегистрированных) -->
-      <section id="screen-loading" class="screen hidden center" data-route="loading">
+      <!-- ✅ Loading (ПЕРВЫЙ экран для ВСЕХ) -->
+      <section id="screen-loading" class="screen center" data-route="loading">
         <div class="spinner" aria-hidden="true"></div>
         <h1 class="big">Загрузка…</h1>
-        <p class="muted">Готовлю главное меню</p>
+        <p class="muted">Проверяем ваши данные</p>
       </section>
 
       <!-- Onboarding -->
-      <section id="screen-onboarding" class="screen" data-route="onboarding">
+      <section id="screen-onboarding" class="screen hidden" data-route="onboarding">
         <img class="mascot-img" src="assets/mascot_hello.png" alt="Маскот" />
         <h1>Привет! Я Хранитель Историй</h1>
         <p class="muted">
