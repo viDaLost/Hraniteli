@@ -1,6 +1,6 @@
 // app.js
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzD85Ycs67qZ5Rm-FZ6kyzbfYnm9fYZrFucfM1qeABi_hXEMgDEVEHgcaCbFTWwwUPq/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyvBrRd7lXpHfzVZlB7s7EOl7gVIv8aCt-haf5l4o2ciGkZSa_NRFK4ajwiusidPnGuDQ/exec";
 const POLL_MS = 10_000;
 
 const tg = window.Telegram?.WebApp;
@@ -69,19 +69,49 @@ function getTelegramIdentity(){
   return { id: String(u.id) };
 }
 
+/**
+ * ✅ FIX iOS Telegram WebView / GAS:
+ * Не используем application/json, чтобы не было preflight OPTIONS -> "Load failed"
+ * Отправляем JSON строкой с Content-Type text/plain;charset=utf-8 (simple request)
+ * + таймаут, чтобы не зависало.
+ */
 async function api(action, payload = {}){
-  const res = await fetch(GAS_URL, {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({
-      action,
-      initData: state.initData,
-      ...payload,
-    })
-  });
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "API error");
-  return data;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      cache: "no-store",
+      signal: controller.signal,
+      body: JSON.stringify({
+        action,
+        initData: state.initData,
+        ...payload,
+      })
+    });
+
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Сервер вернул не-JSON: " + text.slice(0, 120));
+    }
+
+    if (!data.ok) throw new Error(data.error || "API error");
+    return data;
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      throw new Error("Таймаут запроса (15с). Проверь GAS / сеть.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function localGet(key){ return localStorage.getItem(key) || ""; }
@@ -232,7 +262,7 @@ async function openHomework(){
     $("homework-text").textContent = r.homework_text || "Пока нет задания 🙂";
     showModal(modalHomework);
   } catch (e) {
-    $("homework-text").textContent = "Не удалось загрузить задание.";
+    $("homework-text").textContent = "Не удалось загрузить задание: " + e.message;
     showModal(modalHomework);
   }
 }
@@ -360,9 +390,7 @@ $("btn-admin-save-homework").addEventListener("click", async () => {
 
 // чтобы поллинг не работал, когда приложение скрыто
 document.addEventListener("visibilitychange", () => {
-  // можно и не останавливать, но так экономнее
   if (document.hidden) return;
-  // когда вернулись — сразу подтянуть свежие данные
   pollTick();
 });
 
