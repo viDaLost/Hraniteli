@@ -28,7 +28,9 @@ body{
   padding:18px 14px 28px;
 }
 .screen{ animation:fade .18s ease; }
-.hidden{ display:none; }
+
+/* ✅ ВАЖНО: чтобы .modal {display:flex} не перебивал скрытие */
+.hidden{ display:none !important; }
 
 .hero-img{
   width:100%;
