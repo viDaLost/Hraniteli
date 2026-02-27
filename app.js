@@ -1,6 +1,7 @@
 // app.js
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbzD85Ycs67qZ5Rm-FZ6kyzbfYnm9fYZrFucfM1qeABi_hXEMgDEVEHgcaCbFTWwwUPq/exec";
+const POLL_MS = 10_000;
 
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
@@ -25,105 +26,172 @@ const state = {
   profile: null,
 };
 
-function showScreen(name) {
-  Object.values(screens).forEach((s) => s.classList.add("hidden"));
+let pollTimer = null;
+
+function showScreen(name){
+  Object.values(screens).forEach(s => s.classList.add("hidden"));
   screens[name].classList.remove("hidden");
 }
 
-function showModal(el) {
-  if (!el) return;
-  el.classList.remove("hidden");
-}
-function hideModal(el) {
-  if (!el) return;
-  el.classList.add("hidden");
+function showModal(el){ el.classList.remove("hidden"); }
+function hideModal(el){ el.classList.add("hidden"); }
+
+function isVisible(el){
+  return el && !el.classList.contains("hidden");
 }
 
-/**
- * Надёжный "тап" для iOS/Telegram WebView:
- * - touchend (чтобы не было проблем с click)
- * - click (для остальных)
- */
-function addTap(el, handler) {
-  if (!el) return;
+// На iOS внутри Telegram иногда "клик" по кнопке в overlay
+// может не отрабатывать стабильно.
+function bindModalClose(modalEl, closeBtnEl){
+  if (!modalEl || !closeBtnEl) return;
 
-  const wrapped = (e) => {
-    // чтобы не происходили "двойные" срабатывания и странности iOS
-    try { e.preventDefault?.(); } catch {}
-    try { e.stopPropagation?.(); } catch {}
-    handler(e);
+  const close = (ev) => {
+    ev?.preventDefault?.();
+    ev?.stopPropagation?.();
+    hideModal(modalEl);
   };
 
-  el.addEventListener("touchend", wrapped, { passive: false });
-  el.addEventListener("click", wrapped);
+  closeBtnEl.addEventListener("click", close);
+  closeBtnEl.addEventListener("touchend", close, { passive: false });
+
+  modalEl.addEventListener("click", (ev) => {
+    if (ev.target === modalEl) hideModal(modalEl);
+  });
+  modalEl.addEventListener("touchend", (ev) => {
+    if (ev.target === modalEl) hideModal(modalEl);
+  }, { passive: true });
 }
 
-function getTelegramIdentity() {
-  // In Telegram WebApp, user is in initDataUnsafe.user
+function getTelegramIdentity(){
   if (!tg) return null;
   const u = tg.initDataUnsafe?.user;
   if (!u?.id) return null;
   return { id: String(u.id) };
 }
 
-async function api(action, payload = {}) {
+async function api(action, payload = {}){
   const res = await fetch(GAS_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type":"application/json" },
     body: JSON.stringify({
       action,
       initData: state.initData,
       ...payload,
-    }),
+    })
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "API error");
   return data;
 }
 
-function localGet(key) {
-  return localStorage.getItem(key) || "";
-}
-function localSet(key, val) {
-  localStorage.setItem(key, String(val));
-}
+function localGet(key){ return localStorage.getItem(key) || ""; }
+function localSet(key,val){ localStorage.setItem(key, String(val)); }
 
-function onboardingValidate() {
+function onboardingValidate(){
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
   $("btn-confirm").disabled = !(name && dob);
 }
 
-async function boot() {
-  // ✅ ЖЁСТКО скрываем модалки на старте (фикс “модалка открывается сама”)
-  hideModal(modalProfile);
-  hideModal(modalHomework);
+function applyProfileToUI(profile){
+  if (!profile) return;
 
-  // Telegram init
+  // если открыт профиль — обновим цифры/имя/дату
+  if (isVisible(modalProfile)){
+    $("profile-name").textContent = profile.name || localGet("name") || "Пользователь";
+    $("profile-dob").textContent = profile.dob || localGet("dob") || "";
+
+    $("star-bible").textContent = profile.bible ?? 0;
+    $("star-truth").textContent = profile.truth ?? 0;
+    $("star-behavior").textContent = profile.behavior ?? 0;
+  }
+}
+
+function applyHomeworkToUI(homeworkText){
+  // если открыта модалка домашки — обновим текст
+  if (isVisible(modalHomework)){
+    $("homework-text").textContent = homeworkText || "Пока нет задания 🙂";
+  }
+
+  // если открыт экран админа — обновим textarea, но НЕ перезатираем, если пользователь редактирует
+  if (screens.admin && !screens.admin.classList.contains("hidden")){
+    const ta = $("admin-homework");
+    const isEditing = document.activeElement === ta;
+    if (ta && !isEditing){
+      ta.value = homeworkText || "";
+    }
+  }
+}
+
+/** ✅ Поллинг каждые 10 секунд */
+function startPolling(){
+  if (pollTimer) return;
+  pollTimer = setInterval(pollTick, POLL_MS);
+}
+
+function stopPolling(){
+  if (!pollTimer) return;
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+async function pollTick(){
+  // не долбим сеть, когда вкладка не активна
+  if (document.hidden) return;
+  // нет initData — нет смысла
+  if (!state.initData) return;
+
+  // обновляем профиль (звёзды/данные)
+  try{
+    const p = await api("getProfile");
+    state.isAdmin = !!p.isAdmin;
+    state.profile = p.profile;
+
+    // подстрахуем локальное (чтобы не терялось)
+    if (state.profile?.name) localSet("name", state.profile.name);
+    if (state.profile?.dob) localSet("dob", state.profile.dob);
+
+    applyProfileToUI(state.profile);
+  }catch{ /* молча */ }
+
+  // обновляем домашку, но только если она сейчас нужна (модалка/админ)
+  const needHomework = isVisible(modalHomework) || (screens.admin && !screens.admin.classList.contains("hidden"));
+  if (needHomework){
+    try{
+      const hw = await api("getHomework");
+      applyHomeworkToUI(hw.homework_text || "");
+    }catch{ /* молча */ }
+  }
+}
+
+async function boot(){
+  // прячем модалки на старте
+  hideModal(modalHomework);
+  hideModal(modalProfile);
+
   state.initData = tg?.initData || "";
   const ident = getTelegramIdentity();
-
   state.tgId = ident?.id || null;
 
-  // If opened not from Telegram
   if (!state.tgId || !state.initData) {
     showScreen("onboarding");
-    $("onboarding-error").textContent =
-      "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
+    $("onboarding-error").textContent = "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
     return;
   }
 
-  // Try getProfile
+  // ✅ запускаем автообновление
+  startPolling();
+
   try {
     const p = await api("getProfile");
     state.isAdmin = !!p.isAdmin;
     state.profile = p.profile;
 
+    if (state.profile?.name) localSet("name", state.profile.name);
+    if (state.profile?.dob) localSet("dob", state.profile.dob);
+
     // If already registered -> go hello
     if (state.profile?.name && state.profile?.dob) {
-      localSet("name", state.profile.name);
-      localSet("dob", state.profile.dob);
-
       $("hello-title").textContent = `Отлично, рад познакомиться, ${state.profile.name}!`;
       showScreen("hello");
       if (state.isAdmin) $("btn-admin").classList.remove("hidden");
@@ -137,7 +205,7 @@ async function boot() {
   }
 }
 
-async function doRegister() {
+async function doRegister(){
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
   $("onboarding-error").textContent = "";
@@ -151,41 +219,33 @@ async function doRegister() {
     localSet("dob", dob);
 
     $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
-    showScreen("hello");
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
+    showScreen("hello");
   } catch (e) {
     $("onboarding-error").textContent = e.message;
   }
 }
 
-/** ===== Homework ===== */
-async function openHomework() {
+async function openHomework(){
   try {
     const r = await api("getHomework");
-    $("homework-text").textContent = r.homework_text || "Пока нет домашнего задания.";
+    $("homework-text").textContent = r.homework_text || "Пока нет задания 🙂";
+    showModal(modalHomework);
   } catch (e) {
-    $("homework-text").textContent = "Не удалось загрузить задание: " + e.message;
+    $("homework-text").textContent = "Не удалось загрузить задание.";
+    showModal(modalHomework);
   }
-  showModal(modalHomework);
 }
 
-/** ===== Profile ===== */
-async function openProfile() {
+async function openProfile(){
   try {
     const r = await api("getProfile");
     state.isAdmin = !!r.isAdmin;
     state.profile = r.profile;
 
-    $("profile-name").textContent = state.profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = state.profile.dob || localGet("dob") || "";
-
-    $("star-bible").textContent = state.profile.bible ?? 0;
-    $("star-truth").textContent = state.profile.truth ?? 0;
-    $("star-behavior").textContent = state.profile.behavior ?? 0;
-
+    applyProfileToUI(state.profile);
     showModal(modalProfile);
   } catch (e) {
-    // fallback local
     $("profile-name").textContent = localGet("name") || "Пользователь";
     $("profile-dob").textContent = localGet("dob") || "";
     $("star-bible").textContent = "0";
@@ -196,26 +256,24 @@ async function openProfile() {
 }
 
 /** ===== Admin ===== */
-async function openAdmin() {
+async function openAdmin(){
   showScreen("admin");
 
-  // load homework
   try {
     const hw = await api("getHomework");
     $("admin-homework").value = hw.homework_text || "";
   } catch {}
 
-  // list users
   await refreshAdminUsers();
 }
 
-async function refreshAdminUsers() {
+async function refreshAdminUsers(){
   const wrap = $("admin-users");
   wrap.innerHTML = "Загрузка...";
   try {
     const r = await api("adminListUsers");
     wrap.innerHTML = "";
-    r.users.forEach((u) => {
+    r.users.forEach(u => {
       const el = document.createElement("div");
       el.className = "admin-user";
       el.innerHTML = `
@@ -231,15 +289,15 @@ async function refreshAdminUsers() {
         <div class="grid">
           <div>
             <div class="small">Библия</div>
-            <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible" />
+            <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
           </div>
           <div>
             <div class="small">Основы истины</div>
-            <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth" />
+            <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
           </div>
           <div>
             <div class="small">Поведение</div>
-            <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior" />
+            <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
           </div>
         </div>
         <div class="small" data-msg></div>
@@ -253,7 +311,7 @@ async function refreshAdminUsers() {
         try {
           await api("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior });
           msg.textContent = "Готово ✅";
-        } catch (e) {
+        } catch(e){
           msg.textContent = "Ошибка: " + e.message;
         }
       });
@@ -265,62 +323,47 @@ async function refreshAdminUsers() {
   }
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, (c)=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[c]));
 }
 
 /** ===== Bindings ===== */
 $("inp-name").addEventListener("input", onboardingValidate);
 $("inp-dob").addEventListener("input", onboardingValidate);
-addTap($("btn-confirm"), doRegister);
+$("btn-confirm").addEventListener("click", doRegister);
 
-addTap($("btn-forward"), () => showScreen("menu"));
+$("btn-forward").addEventListener("click", () => showScreen("menu"));
 
-addTap($("btn-games"), () => showScreen("games"));
-addTap($("btn-games-back"), () => showScreen("menu"));
+$("btn-games").addEventListener("click", () => showScreen("games"));
+$("btn-games-back").addEventListener("click", () => showScreen("menu"));
 
-addTap($("btn-homework"), openHomework);
-addTap($("btn-homework-close"), () => hideModal(modalHomework));
+$("btn-homework").addEventListener("click", openHomework);
+bindModalClose(modalHomework, $("btn-homework-close"));
 
-addTap($("btn-profile"), openProfile);
-addTap($("btn-profile-close"), () => hideModal(modalProfile));
+$("btn-profile").addEventListener("click", openProfile);
+bindModalClose(modalProfile, $("btn-profile-close"));
 
-// ✅ закрытие по тапу на затемнение (вне карточки)
-if (modalProfile) {
-  modalProfile.addEventListener("click", (e) => {
-    if (e.target === modalProfile) hideModal(modalProfile);
-  });
-  modalProfile.addEventListener("touchend", (e) => {
-    if (e.target === modalProfile) hideModal(modalProfile);
-  }, { passive: true });
-}
+$("btn-admin").addEventListener("click", openAdmin);
+$("btn-admin-back").addEventListener("click", () => showScreen("menu"));
 
-if (modalHomework) {
-  modalHomework.addEventListener("click", (e) => {
-    if (e.target === modalHomework) hideModal(modalHomework);
-  });
-  modalHomework.addEventListener("touchend", (e) => {
-    if (e.target === modalHomework) hideModal(modalHomework);
-  }, { passive: true });
-}
-
-addTap($("btn-admin"), openAdmin);
-addTap($("btn-admin-back"), () => showScreen("menu"));
-
-addTap($("btn-admin-save-homework"), async () => {
+$("btn-admin-save-homework").addEventListener("click", async () => {
   $("admin-homework-msg").textContent = "Сохранение...";
   try {
     await api("adminSetHomework", { homework_text: $("admin-homework").value });
     $("admin-homework-msg").textContent = "Сохранено ✅";
-  } catch (e) {
+  } catch(e){
     $("admin-homework-msg").textContent = "Ошибка: " + e.message;
   }
+});
+
+// чтобы поллинг не работал, когда приложение скрыто
+document.addEventListener("visibilitychange", () => {
+  // можно и не останавливать, но так экономнее
+  if (document.hidden) return;
+  // когда вернулись — сразу подтянуть свежие данные
+  pollTick();
 });
 
 boot();
