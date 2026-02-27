@@ -2,7 +2,7 @@
 
 // ❗ ВАЖНО: сюда вставь Web app URL ИЗ ТОГО Apps Script, где ты поменял verifyTelegramInitData_()
 // Deploy -> Manage deployments -> Web app URL (заканчивается на /exec)
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyOF_MUryhBFqFMya2CzVtelOFYRVkhTMyp39DtAdIGg3igOzxgoopNPx1O9D8HtKdtEQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbweaVaozNs-v9108dWQP9JB6vtaEQSnAfqur-faTfW43CE-zDN3WMhHJoYSYZxIN39j/exec";
 const POLL_MS = 10_000;
 
 const tg = window.Telegram?.WebApp;
