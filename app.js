@@ -33,6 +33,30 @@ function showScreen(name){
 function showModal(el){ el.classList.remove("hidden"); }
 function hideModal(el){ el.classList.add("hidden"); }
 
+// На iOS внутри Telegram иногда "клик" по кнопке в фиксированном overlay
+// может не отрабатывать стабильно. Поэтому:
+// 1) вешаем и click, и touchend на кнопку
+// 2) разрешаем закрытие по тапу на затемнение вокруг карточки
+function bindModalClose(modalEl, closeBtnEl){
+  if (!modalEl || !closeBtnEl) return;
+
+  const close = (ev) => {
+    ev?.preventDefault?.();
+    ev?.stopPropagation?.();
+    hideModal(modalEl);
+  };
+
+  closeBtnEl.addEventListener("click", close);
+  closeBtnEl.addEventListener("touchend", close, { passive: false });
+
+  modalEl.addEventListener("click", (ev) => {
+    if (ev.target === modalEl) hideModal(modalEl);
+  });
+  modalEl.addEventListener("touchend", (ev) => {
+    if (ev.target === modalEl) hideModal(modalEl);
+  }, { passive: true });
+}
+
 function getTelegramIdentity(){
   // In Telegram WebApp, user is in initDataUnsafe.user
   if (!tg) return null;
@@ -66,6 +90,10 @@ function onboardingValidate(){
 }
 
 async function boot(){
+  // На всякий случай: если по какой-то причине модалка видима при старте — прячем.
+  hideModal(modalHomework);
+  hideModal(modalProfile);
+
   // Telegram init
   state.initData = tg?.initData || "";
   const ident = getTelegramIdentity();
@@ -251,10 +279,10 @@ $("btn-games").addEventListener("click", () => showScreen("games"));
 $("btn-games-back").addEventListener("click", () => showScreen("menu"));
 
 $("btn-homework").addEventListener("click", openHomework);
-$("btn-homework-close").addEventListener("click", () => hideModal(modalHomework));
+bindModalClose(modalHomework, $("btn-homework-close"));
 
 $("btn-profile").addEventListener("click", openProfile);
-$("btn-profile-close").addEventListener("click", () => hideModal(modalProfile));
+bindModalClose(modalProfile, $("btn-profile-close"));
 
 $("btn-admin").addEventListener("click", openAdmin);
 $("btn-admin-back").addEventListener("click", () => showScreen("menu"));
