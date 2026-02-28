@@ -716,15 +716,15 @@ function renderAdminUsers(users){
 
       <div class="grid">
         <div>
-          <div class="small">Библия</div>
+          <div class="small">За домашнее задание</div>
           <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
         </div>
         <div>
-          <div class="small">Основы истины</div>
+          <div class="small">За активное участие</div>
           <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
         </div>
         <div>
-          <div class="small">Поведение</div>
+          <div class="small">За поведение</div>
           <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
         </div>
       </div>
