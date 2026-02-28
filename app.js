@@ -37,6 +37,7 @@ const state = {
   initData: "",
   isAdmin: false,
   profile: null,
+  isRegistering: false, // ✅ FIX: блокируем повторные регистрации + контролим UI кнопки
 };
 
 let pollTimer = null;
@@ -184,7 +185,7 @@ async function apiFast(action, payload = {}, { ttl = 0, force = false } = {}) {
 
 function setCachedProfile(p){
   state.isAdmin = !!p.isAdmin;
-  state.profile = p.profile;
+  state.profile = p.profile || state.profile;
 
   if (state.profile?.name) localSet("name", state.profile.name);
   if (state.profile?.dob) localSet("dob", state.profile.dob);
@@ -214,6 +215,15 @@ function getCachedProfile(){
 }
 
 // -----------------------
+// ✅ FIX: local-profile checker (prevents bouncing back to onboarding)
+// -----------------------
+function hasLocalProfile(){
+  const n = localGet("name").trim();
+  const d = localGet("dob").trim();
+  return !!(n && d);
+}
+
+// -----------------------
 // SPA Router + Transitions
 // -----------------------
 function routeFromHash(){
@@ -224,7 +234,8 @@ function routeFromHash(){
 }
 
 function canAccess(route){
-  const hasProfile = !!(state.profile?.name && state.profile?.dob);
+  // ✅ FIX: считаем "зарегистрирован", если есть state.profile ИЛИ localStorage
+  const hasProfile = !!(state.profile?.name && state.profile?.dob) || hasLocalProfile();
   if (hasProfile) return true;
   return ["loading","onboarding","hello"].includes(route);
 }
@@ -457,7 +468,8 @@ function wireSwipeBack(){
 function onboardingValidate(){
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
-  $("btn-confirm").disabled = !(name && dob);
+  // ✅ FIX: если идёт регистрация — кнопка не активна
+  $("btn-confirm").disabled = !(name && dob) || state.isRegistering;
 }
 
 function applyProfileToUI(profile){
@@ -541,38 +553,80 @@ async function boot(){
     setCachedProfile(p);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
 
-    if (state.profile?.name && state.profile?.dob) {
+    // ✅ FIX: если профиль уже есть (state или localStorage) — сразу в меню
+    if ((state.profile?.name && state.profile?.dob) || hasLocalProfile()) {
       navigate("menu", { replace: true });
       return;
     }
     navigate("onboarding", { replace: true });
 
   } catch (e) {
+    // ✅ FIX: если сервер временно не ответил, но localStorage уже есть — всё равно пускаем в меню
+    if (hasLocalProfile()) {
+      state.profile = state.profile || {
+        name: localGet("name"),
+        dob: localGet("dob"),
+        bible: 0,
+        truth: 0,
+        behavior: 0,
+      };
+      navigate("menu", { replace: true });
+      return;
+    }
+
     navigate("onboarding", { replace: true });
     $("onboarding-error").textContent = e.message;
     hNotify("error");
   }
 }
 
+// ✅ FIX: "Подтвердить" -> "Загрузка..." пока идёт запрос + защита от повторов
 async function doRegister(){
+  if (state.isRegistering) return;
+
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
   $("onboarding-error").textContent = "";
 
+  const btn = $("btn-confirm");
+  const prevText = btn.textContent;
+
+  // UI: сразу показать загрузку и заблокировать кнопку
+  state.isRegistering = true;
+  btn.disabled = true;
+  btn.textContent = "Загрузка…";
+
+  // ✅ ключевой фикс от "отката": сохраняем профиль локально ДО ответа сервера
+  localSet("name", name);
+  localSet("dob", dob);
+  state.profile = { name, dob, bible: 0, truth: 0, behavior: 0 };
+
+  // обновим кэш профиля (минимальный), чтобы canAccess() не кидал назад
+  localSet("profile_cache", JSON.stringify({
+    ts: Date.now(),
+    isAdmin: false,
+    profile: state.profile
+  }));
+
   try {
     const r = await apiFast("register", { name, dob }, { force: true });
+    // если сервер вернул профиль/админа — применяем
     setCachedProfile(r);
-
-    localSet("name", name);
-    localSet("dob", dob);
 
     $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
     hNotify("success");
-    navigate("hello");
+
+    // ✅ replace=true чтобы назад не возвращало на onboarding
+    navigate("hello", { replace: true });
   } catch (e) {
     $("onboarding-error").textContent = e.message;
     hNotify("error");
+  } finally {
+    // возвращаем кнопку в норму (если мы остались на onboarding)
+    btn.textContent = prevText;
+    state.isRegistering = false;
+    onboardingValidate();
   }
 }
 
@@ -724,7 +778,8 @@ $("inp-name").addEventListener("input", onboardingValidate);
 $("inp-dob").addEventListener("input", onboardingValidate);
 $("btn-confirm").addEventListener("click", doRegister);
 
-$("btn-forward").addEventListener("click", () => navigate("menu"));
+// ✅ FIX: после "Вперёд" сразу меню и replace=true, чтобы не возвращало/не прыгало
+$("btn-forward").addEventListener("click", () => navigate("menu", { replace: true }));
 
 $("btn-games").addEventListener("click", () => navigate("games"));
 $("btn-games-back").addEventListener("click", () => navigate("menu"));
