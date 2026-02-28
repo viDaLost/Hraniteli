@@ -11,7 +11,7 @@
   <div class="app">
     <div class="viewport" id="viewport">
 
-      <!-- ✅ Loading (ПЕРВЫЙ экран для ВСЕХ) -->
+      <!-- Loading -->
       <section id="screen-loading" class="screen center" data-route="loading">
         <div class="spinner" aria-hidden="true"></div>
         <h1 class="big">Загрузка…</h1>
@@ -20,7 +20,7 @@
 
       <!-- Onboarding -->
       <section id="screen-onboarding" class="screen hidden" data-route="onboarding">
-        <img class="mascot-img" src="assets/mascot_hello.png" alt="Маскот" />
+        <img class="mascot-img" src="assets/mascot_onboarding.png" alt="">
         <h1>Привет! Я Хранитель Историй</h1>
         <p class="muted">
           Я твой проводник и помощник в изучении священного описания.
@@ -30,10 +30,8 @@
         <div class="card">
           <label>Имя</label>
           <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
-
           <label>Дата рождения</label>
           <input id="inp-dob" type="date" />
-
           <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
           <div id="onboarding-error" class="error"></div>
         </div>
@@ -41,7 +39,7 @@
 
       <!-- Hello -->
       <section id="screen-hello" class="screen hidden" data-route="hello">
-        <img class="mascot-img" src="assets/mascot_hi.png" alt="Маскот" />
+        <img class="mascot-img" src="assets/mascot_hello.png" alt="">
         <h1 id="hello-title">Отлично, рад познакомиться!</h1>
         <p class="muted">А теперь давай окунёмся в мир знаний.</p>
         <button id="btn-forward" class="btn primary">Вперёд</button>
@@ -49,7 +47,7 @@
 
       <!-- Main menu -->
       <section id="screen-menu" class="screen hidden" data-route="menu">
-        <img class="mascot-img" src="assets/mascot_hi.png" alt="Меню" />
+        <img class="mascot-img" src="assets/mascot_menu.png" alt="">
         <h1>Главное меню</h1>
 
         <div class="menu-grid">
@@ -62,6 +60,7 @@
 
       <!-- Games menu -->
       <section id="screen-games" class="screen hidden" data-route="games">
+        <img class="mascot-img" src="assets/mascot_games.png" alt="">
         <h1>Библейские игры</h1>
         <div class="menu-grid">
           <button class="btn tile" data-nav="match">Найди пару</button>
@@ -70,9 +69,9 @@
         </div>
       </section>
 
-      <!-- Match game (SPA screen) -->
+      <!-- Match game -->
       <section id="screen-match" class="screen hidden" data-route="match">
-        <img class="mascot-img" src="assets/mascot_hi.png" alt="Найди пару" />
+        <img class="mascot-img" src="assets/mascot_match.png" alt="">
         <h1>Помоги Ною найти пару</h1>
         <p class="muted">Для каждого животного нужна пара 🙂</p>
 
@@ -97,15 +96,16 @@
 
         <div id="match-win" class="modal hidden">
           <div class="modal-card center">
-            <img class="mascot-img" src="assets/win_popup.png" alt="Победа" />
+            <img class="mascot-img" src="assets/mascot_win.png" alt="">
             <h2>Молодец! Ты нашёл всем пару!</h2>
             <button class="btn primary" id="match-btn-win-close">Закрыть</button>
           </div>
         </div>
       </section>
 
-      <!-- Word game (SPA screen) -->
+      <!-- Word game -->
       <section id="screen-word" class="screen hidden" data-route="word">
+        <img class="mascot-img" src="assets/mascot_word.png" alt="">
         <h1>Найди слово</h1>
         <p class="muted">Выбери слово, которое подходит в пропуск.</p>
 
@@ -125,6 +125,7 @@
 
       <!-- Admin screen -->
       <section id="screen-admin" class="screen hidden" data-route="admin">
+        <img class="mascot-img" src="assets/mascot_admin.png" alt="">
         <h1>Админ-панель</h1>
 
         <div class="card">
@@ -142,11 +143,12 @@
         <button class="btn" id="btn-admin-back">← Главное меню</button>
       </section>
 
-    </div><!-- /viewport -->
+    </div>
 
     <!-- Homework modal -->
     <div id="modal-homework" class="modal hidden">
       <div class="modal-card">
+        <img class="mascot-img" src="assets/mascot_homework.png" alt="">
         <h2>Домашнее задание</h2>
         <p id="homework-text" class="muted"></p>
         <button class="btn" id="btn-homework-close">Закрыть</button>
@@ -156,6 +158,7 @@
     <!-- Profile modal -->
     <div id="modal-profile" class="modal hidden">
       <div class="modal-card">
+        <img class="mascot-img" src="assets/mascot_profile.png" alt="">
         <h2 id="profile-name" class="center big"></h2>
         <div id="profile-dob" class="center muted"></div>
 
@@ -178,7 +181,7 @@
       </div>
     </div>
 
-  </div><!-- /app -->
+  </div>
 
   <script src="games/match.js" defer></script>
   <script src="games/word.js" defer></script>
