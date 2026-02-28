@@ -5,11 +5,11 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyXbnpE6gEiaLbLM23GpzSbyXhWwZShVEVYTJxJ2agSEB2-ytDBBdji5T9WA8zcJ5R4/exec";
 const POLL_MS = 10_000;
 
-// Кэш (клиентский) — чтобы UI отвечал сразу
+// Client cache TTL (UI should respond instantly)
 const CACHE_TTL = {
-  getProfile: 60_000,        // 60 сек
-  adminListUsers: 20_000,    // 20 сек
-  getHomework: 60_000,       // 60 сек
+  getProfile: 60_000,
+  adminListUsers: 20_000,
+  getHomework: 60_000,
 };
 
 const tg = window.Telegram?.WebApp;
@@ -117,13 +117,34 @@ function escapeHtml(s){
 }
 
 // -----------------------
-// ✅ Дедупликация и TTL-кэш запросов
+// ✅ FIX: DOB formatting (no timezone shift) + RU format DD.MM.YYYY
+// -----------------------
+function formatDobRu(dob){
+  if (!dob) return "";
+  const s = String(dob);
+
+  // If ISO: 2004-03-05T21:00:00.000Z -> take "2004-03-05"
+  let ymd = s;
+  if (s.includes("T")) ymd = s.slice(0, 10);
+
+  // If already YYYY-MM-DD -> convert
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+
+  // If someone stored DD.MM.YYYY already -> keep
+  const m2 = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(ymd);
+  if (m2) return ymd;
+
+  return ymd;
+}
+
+// -----------------------
+// ✅ Dedupe + TTL cache for API calls
 // -----------------------
 const inFlight = new Map(); // key -> Promise
 const memCache = new Map(); // key -> {ts, data}
 
 function cacheKey(action, payload){
-  // payload тут обычно небольшой; для стабильности берём JSON
   return action + "::" + JSON.stringify(payload || {});
 }
 
@@ -132,14 +153,10 @@ async function apiFast(action, payload = {}, { ttl = 0, force = false } = {}) {
 
   if (!force && ttl > 0) {
     const hit = memCache.get(key);
-    if (hit && (Date.now() - hit.ts) < ttl) {
-      return hit.data;
-    }
+    if (hit && (Date.now() - hit.ts) < ttl) return hit.data;
   }
 
-  if (inFlight.has(key)) {
-    return inFlight.get(key);
-  }
+  if (inFlight.has(key)) return inFlight.get(key);
 
   const p = api(action, payload)
     .then((data) => {
@@ -169,17 +186,13 @@ function setCachedProfile(p){
 }
 
 function getCachedProfile(){
-  // 1) state
   if (state.profile?.name && state.profile?.dob) return { isAdmin: state.isAdmin, profile: state.profile };
 
-  // 2) localStorage cache
   try{
     const raw = localGet("profile_cache");
     if (!raw) return null;
     const obj = JSON.parse(raw);
     if (!obj?.profile) return null;
-
-    // допускаем кэш до 24 часов, потому что это просто имя/дата/звёзды
     if (Date.now() - (obj.ts || 0) > 24*60*60*1000) return null;
     return { isAdmin: !!obj.isAdmin, profile: obj.profile };
   }catch{
@@ -438,7 +451,7 @@ function applyProfileToUI(profile){
   if (!profile) return;
   if (isVisible(modalProfile)){
     $("profile-name").textContent = profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = profile.dob || localGet("dob") || "";
+    $("profile-dob").textContent = profile.dob ? formatDobRu(profile.dob) : (localGet("dob") || "");
     $("star-bible").textContent = profile.bible ?? 0;
     $("star-truth").textContent = profile.truth ?? 0;
     $("star-behavior").textContent = profile.behavior ?? 0;
@@ -465,7 +478,6 @@ async function pollTick(){
   if (document.hidden) return;
   if (!state.initData) return;
 
-  // ✅ profile — берём быстро через TTL кэш
   try{
     const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
     setCachedProfile(p);
@@ -482,9 +494,6 @@ async function pollTick(){
   }
 }
 
-/**
- * boot: всегда loading, затем быстрый getProfile
- */
 async function boot(){
   hideModal(modalHomework);
   hideModal(modalProfile);
@@ -505,7 +514,6 @@ async function boot(){
     return;
   }
 
-  // ✅ мгновенно наполняем state из локального кэша (если есть)
   const cached = getCachedProfile();
   if (cached?.profile) {
     state.isAdmin = !!cached.isAdmin;
@@ -516,7 +524,6 @@ async function boot(){
   startPolling();
 
   try {
-    // ✅ быстрый запрос с TTL-кэшем
     const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
     setCachedProfile(p);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
@@ -556,17 +563,15 @@ async function doRegister(){
   }
 }
 
-// ✅ Профиль: открываем МГНОВЕННО, данные — сразу из кэша, затем обновляем с сервера
+// Profile: open instantly, fill from cache, then refresh in bg
 async function openProfile(){
-  // 1) показать модалку мгновенно
   showModal(modalProfile);
   hImpact("light");
 
-  // 2) заполнить из state/localStorage сразу
   const cached = getCachedProfile();
   if (cached?.profile) {
     $("profile-name").textContent = cached.profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = cached.profile.dob || localGet("dob") || "";
+    $("profile-dob").textContent = cached.profile.dob ? formatDobRu(cached.profile.dob) : (localGet("dob") || "");
     $("star-bible").textContent = cached.profile.bible ?? 0;
     $("star-truth").textContent = cached.profile.truth ?? 0;
     $("star-behavior").textContent = cached.profile.behavior ?? 0;
@@ -575,7 +580,6 @@ async function openProfile(){
     $("profile-dob").textContent = localGet("dob") || "";
   }
 
-  // 3) в фоне — обновить (но не спамить запросами)
   try {
     const r = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
     setCachedProfile(r);
@@ -584,7 +588,6 @@ async function openProfile(){
   } catch {}
 }
 
-// ✅ Домашка: открываем сразу, текст — сначала "загрузка", затем кэш/сервер
 async function openHomework(){
   showModal(modalHomework);
   $("homework-text").textContent = "Загрузка…";
@@ -597,12 +600,10 @@ async function openHomework(){
   }
 }
 
-// ✅ Админ: экран показываем мгновенно, список пользователей — скелетон, потом данные
 async function openAdmin(){
   navigate("admin");
   hImpact("light");
 
-  // домашка админа — быстро через TTL кэш
   $("admin-homework").value = "Загрузка...";
   try {
     const hw = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
@@ -616,7 +617,6 @@ async function openAdmin(){
 
 async function refreshAdminUsersFast(){
   const wrap = $("admin-users");
-  // быстрый скелетон
   wrap.innerHTML = `
     <div class="admin-user"><div class="small">Загрузка пользователей…</div></div>
     <div class="admin-user"><div class="small">Почти готово…</div></div>
@@ -641,7 +641,7 @@ function renderAdminUsers(users){
       <div class="top">
         <div>
           <div><b>${escapeHtml(u.name || "(без имени)")}</b></div>
-          <div class="small">${escapeHtml(u.dob || "")}</div>
+          <div class="small">${escapeHtml(formatDobRu(u.dob))}</div>
           <div class="id">tg_id: ${escapeHtml(u.tg_id)}</div>
         </div>
         <button class="btn" data-act="save">Сохранить</button>
@@ -673,7 +673,6 @@ function renderAdminUsers(users){
 
       try {
         await apiFast("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior }, { force: true });
-        // Сбросим кэш списка пользователей, чтобы при следующем открытии был свежий
         memCache.forEach((_, k) => { if (k.startsWith("adminListUsers::")) memCache.delete(k); });
         msg.textContent = "Готово ✅";
         hNotify("success");
@@ -730,7 +729,6 @@ $("btn-admin-save-homework").addEventListener("click", async () => {
   $("admin-homework-msg").textContent = "Сохранение...";
   try {
     await apiFast("adminSetHomework", { homework_text: $("admin-homework").value }, { force: true });
-    // сбрасываем кэш домашки
     memCache.forEach((_, k) => { if (k.startsWith("getHomework::")) memCache.delete(k); });
     $("admin-homework-msg").textContent = "Сохранено ✅";
     hNotify("success");
