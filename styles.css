@@ -49,11 +49,6 @@ body{
   pointer-events:auto;
 }
 
-.screen.is-active{
-  /* marker class for JS; visibility is controlled by .hidden */
-}
-
-/* forward/back slide with a "spring" feel */
 .screen.is-entering{
   transition: transform .42s cubic-bezier(.2, .9, .2, 1.15), opacity .26s ease;
 }
@@ -66,7 +61,6 @@ body{
 .screen.slide-out-to-left{ transform: translateX(-22px); opacity:.0; }
 .screen.slide-out-to-right{ transform: translateX(22px); opacity:.0; }
 
-/* ✅ ВАЖНО: чтобы .modal {display:flex} не перебивал скрытие */
 .hidden{ display:none !important; }
 
 .mascot-img{
@@ -76,7 +70,6 @@ body{
   object-fit:contain;
   margin:10px auto 14px;
   display:block;
-  /* PNG с прозрачным фоном — без рамок */
 }
 
 h1{ margin:8px 0 8px; font-size:28px; }
@@ -267,7 +260,7 @@ textarea{ resize:vertical; }
   .screen{ padding:28px 22px 46px; }
 }
 
-/* ===== Games shared styles (moved from inline) ===== */
+/* ===== Games shared styles ===== */
 .board{ display:grid; gap:10px; margin-top:10px; }
 .card-tile{
   aspect-ratio: 1 / 1;
@@ -300,6 +293,44 @@ textarea{ resize:vertical; }
 
 .verse{ font-size:18px; line-height:1.5; }
 .word-ref{ margin-top:8px; }
-.option{ font-weight:700; }
-.ok{ outline:3px solid rgba(0,160,90,.35); }
-.bad{ outline:3px solid rgba(185,72,62,.45); }
+
+/* ✅ Найди слово — варианты как карточки-выборы в ряд */
+#word-options.menu-grid{
+  grid-template-columns: 1fr 1fr; /* 2 в ряд на телефоне */
+  gap:12px;
+}
+
+@media (min-width: 740px){
+  #word-options.menu-grid{
+    grid-template-columns: 1fr 1fr 1fr 1fr; /* 4 в ряд на планшете/ПК */
+  }
+}
+
+/* карточки одинаковой высоты */
+#word-options .option{
+  margin-top:0;                 /* убираем стандартный отступ кнопки */
+  height:58px;                  /* одинаковая высота */
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  letter-spacing:.2px;
+  background:rgba(255,255,255,.75);
+  border:1px solid rgba(44,36,26,.14);
+  box-shadow: 0 10px 22px rgba(44,36,26,.06);
+  border-radius:18px;
+}
+
+/* красивый "карточный" hover */
+#word-options .option:hover{
+  filter:brightness(1.03);
+  box-shadow: 0 14px 30px rgba(44,36,26,.10);
+}
+
+/* состояния ответа */
+#word-options .option.ok{
+  outline:3px solid rgba(0,160,90,.35);
+}
+#word-options .option.bad{
+  outline:3px solid rgba(185,72,62,.45);
+}
