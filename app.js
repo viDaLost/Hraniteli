@@ -123,19 +123,32 @@ function formatDobRu(dob){
   if (!dob) return "";
   const s = String(dob);
 
-  // If ISO: 2004-03-05T21:00:00.000Z -> take "2004-03-05"
-  let ymd = s;
-  if (s.includes("T")) ymd = s.slice(0, 10);
+  // 1) Если пришло ISO (есть T) — парсим и берём ЛОКАЛЬНУЮ дату (не UTC)
+  // Пример: 1998-02-22T21:00:00.000Z -> в +03 это уже 1998-02-23
+  if (s.includes("T")) {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${dd}.${mm}.${yyyy}`;
+    }
+    // fallback, если почему-то не распарсилось
+    const ymd = s.slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+    return ymd;
+  }
 
-  // If already YYYY-MM-DD -> convert
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  // 2) Если пришло просто YYYY-MM-DD — конвертим напрямую
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (m) return `${m[3]}.${m[2]}.${m[1]}`;
 
-  // If someone stored DD.MM.YYYY already -> keep
-  const m2 = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(ymd);
-  if (m2) return ymd;
+  // 3) Если уже DD.MM.YYYY — оставляем
+  const m2 = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s);
+  if (m2) return s;
 
-  return ymd;
+  return s;
 }
 
 // -----------------------
