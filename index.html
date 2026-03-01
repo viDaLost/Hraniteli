@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Хранитель света </title>
-  <meta name="theme-color" content="#FBF4E8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Хранитель света</title>
+  <meta name="theme-color" content="#F9F6F0" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,90 +15,123 @@
   <div class="app app-wrapper">
     <div class="viewport" id="viewport">
 
-      <!-- Loading -->
       <section id="screen-loading" class="screen center" data-route="loading">
         <div class="spinner" aria-hidden="true"></div>
         <h1 class="big">Загрузка…</h1>
         <p class="muted">Проверяем ваши данные</p>
       </section>
 
-      <!-- Onboarding -->
       <section id="screen-onboarding" class="screen hidden" data-route="onboarding">
         <img class="mascot-img" src="assets/mascot_onboarding.png" alt="">
-        <h1>Привет! Я Хранитель света</h1>
-        <p class="muted">
-          Я твой проводник и помощник в изучении священного описания.
-          Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
-        </p>
+        <div class="screen-header">
+          <h1>Привет! Я Хранитель света</h1>
+          <p class="muted">
+            Я твой проводник и помощник в изучении священного писания.
+            Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
+          </p>
+        </div>
 
         <div class="card">
-          <label>Имя</label>
-          <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
-          <label>Дата рождения</label>
-          <input id="inp-dob" type="date" />
+          <div class="input-group">
+            <label>Имя</label>
+            <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
+          </div>
+          <div class="input-group">
+            <label>Дата рождения</label>
+            <input id="inp-dob" type="date" />
+          </div>
           <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
           <div id="onboarding-error" class="error"></div>
         </div>
       </section>
 
-      <!-- Hello -->
       <section id="screen-hello" class="screen hidden" data-route="hello">
-        <img class="mascot-img" src="assets/mascot_hello.png" alt="">
-        <h1 id="hello-title">Отлично, рад познакомиться!</h1>
-        <p class="muted">А теперь давай окунёмся в мир знаний.</p>
-        <button id="btn-forward" class="btn primary">Вперёд</button>
+        <div class="screen-content center">
+          <img class="mascot-img" src="assets/mascot_hello.png" alt="">
+          <h1 id="hello-title">Отлично, рад познакомиться!</h1>
+          <p class="muted">А теперь давай окунёмся в мир знаний.</p>
+        </div>
+        <div class="bottom-action">
+          <button id="btn-forward" class="btn primary">Вперёд</button>
+        </div>
       </section>
 
-      <!-- Main menu -->
       <section id="screen-menu" class="screen hidden" data-route="menu">
-        <img class="mascot-img" src="assets/mascot_menu.png" alt="">
-        <h1>Главное меню</h1>
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_menu.png" alt="">
+          <h1>Главное меню</h1>
+        </div>
 
         <div class="menu-grid">
-          <button class="btn tile" id="btn-games">Библейские игры</button>
-          <button class="btn tile" id="btn-homework">Домашнее задание</button>
-          <button class="btn tile" id="btn-profile">Мой профиль</button>
-          <button class="btn tile admin hidden" id="btn-admin">Админ</button>
+          <button class="btn tile" id="btn-games">
+            <span class="tile-icon">🎮</span>
+            Библейские игры
+          </button>
+          <button class="btn tile" id="btn-homework">
+            <span class="tile-icon">📚</span>
+            Домашнее задание
+          </button>
+          <button class="btn tile" id="btn-profile">
+            <span class="tile-icon">👤</span>
+            Мой профиль
+          </button>
+          <button class="btn tile admin hidden" id="btn-admin">
+            <span class="tile-icon">⚙️</span>
+            Админ
+          </button>
         </div>
       </section>
 
-      <!-- Games menu -->
       <section id="screen-games" class="screen hidden" data-route="games">
-        <img class="mascot-img" src="assets/mascot_games.png" alt="">
-        <h1>Библейские игры</h1>
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_games.png" alt="">
+          <h1>Библейские игры</h1>
+        </div>
         <div class="menu-grid">
-          <button class="btn tile" data-nav="match">Найди пару</button>
-          <button class="btn tile" data-nav="word">Найди слово</button>
-          <button class="btn" id="btn-games-back">← Главное меню</button>
+          <button class="btn tile" data-nav="match">
+            <span class="tile-icon">🃏</span>
+            Найди пару
+          </button>
+          <button class="btn tile" data-nav="word">
+            <span class="tile-icon">🔤</span>
+            Найди слово
+          </button>
+        </div>
+        <div class="bottom-action">
+          <button class="btn secondary" id="btn-games-back">← Главное меню</button>
         </div>
       </section>
 
-      <!-- Match game -->
       <section id="screen-match" class="screen hidden" data-route="match">
-        <img class="mascot-img" src="assets/mascot_match.png" alt="">
-        <h1>Найди пару переворачивая карточки</h1>
-        <p class="muted">Для каждого животного нужна пара</p>
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_match.png" alt="">
+          <h1>Найди пару</h1>
+          <p class="muted">Переворачивай карточки и ищи совпадения</p>
+        </div>
 
         <div id="match-pick" class="card">
-          <h2>Выбор игрового поля</h2>
+          <h2>Размер поля</h2>
           <div class="menu-grid">
             <button class="btn tile" data-match-size="4">4 × 4</button>
             <button class="btn tile" data-match-size="6">6 × 6</button>
             <button class="btn tile" data-match-size="8">8 × 8</button>
-            <button class="btn" data-back>← Назад</button>
-            <button class="btn" data-nav="menu">Главное меню</button>
+          </div>
+          <div class="action-row">
+            <button class="btn secondary" data-back>← Назад</button>
+            <button class="btn secondary" data-nav="menu">В меню</button>
           </div>
         </div>
 
         <div id="match-game" class="hidden">
           <div class="top-actions">
-            <button class="btn" id="match-btn-back">← Выбор поля</button>
-            <button class="btn" data-nav="menu">Главное меню</button>
+            <button class="btn secondary small" id="match-btn-back">← Сменить поле</button>
+            <button class="btn secondary small" data-nav="menu">Меню</button>
           </div>
           <div id="match-board" class="board"></div>
         </div>
 
         <div id="match-win" class="modal hidden">
+          <div class="modal-backdrop"></div>
           <div class="modal-card center">
             <img class="mascot-img" src="assets/mascot_win.png" alt="">
             <h2>Молодец! Ты нашёл всем пару!</h2>
@@ -107,36 +140,37 @@
         </div>
       </section>
 
-      <!-- Word game -->
       <section id="screen-word" class="screen hidden" data-route="word">
-        <img class="mascot-img" src="assets/mascot_word.png" alt="">
-        <h1>Найди слово</h1>
-        <p class="muted">Выбери слово, которое подходит в пропуск.</p>
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_word.png" alt="">
+          <h1>Найди слово</h1>
+          <p class="muted">Выбери слово, которое подходит в пропуск.</p>
+        </div>
 
-        <div class="card">
+        <div class="card verse-card">
           <div id="word-verse" class="verse"></div>
           <div id="word-ref" class="muted word-ref"></div>
         </div>
 
-        <div id="word-options" class="menu-grid"></div>
+        <div id="word-options" class="menu-grid options-grid"></div>
 
-        <div class="menu-grid">
-          <button class="btn" id="word-btn-next">Следующее</button>
-          <button class="btn" data-back>← Назад</button>
-          <button class="btn" data-nav="menu">Главное меню</button>
+        <div class="bottom-action row">
+          <button class="btn secondary" data-back>← Назад</button>
+          <button class="btn primary" id="word-btn-next">Следующее</button>
         </div>
       </section>
 
-      <!-- Admin screen -->
       <section id="screen-admin" class="screen hidden" data-route="admin">
-        <img class="mascot-img" src="assets/mascot_admin.png" alt="">
-        <h1>Админ-панель</h1>
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_admin.png" alt="">
+          <h1>Админ-панель</h1>
+        </div>
 
         <div class="card">
-          <h2>Домашнее задание (для всех)</h2>
-          <textarea id="admin-homework" rows="4" placeholder="Введите текст..."></textarea>
-          <button id="btn-admin-save-homework" class="btn primary">Сохранить</button>
-          <div id="admin-homework-msg" class="muted"></div>
+          <h2>Домашнее задание</h2>
+          <textarea id="admin-homework" rows="4" placeholder="Введите текст для всех учеников..."></textarea>
+          <button id="btn-admin-save-homework" class="btn primary">Сохранить задание</button>
+          <div id="admin-homework-msg" class="muted center"></div>
         </div>
 
         <div class="card">
@@ -144,44 +178,50 @@
           <div id="admin-users" class="admin-users"></div>
         </div>
 
-        <button class="btn" id="btn-admin-back">← Главное меню</button>
+        <div class="bottom-action">
+          <button class="btn secondary" id="btn-admin-back">← Главное меню</button>
+        </div>
       </section>
 
     </div>
 
-    <!-- Homework modal -->
     <div id="modal-homework" class="modal hidden">
-      <div class="modal-card">
-        <img class="mascot-img" src="assets/mascot_homework.png" alt="">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card bottom-sheet">
+        <div class="drag-handle"></div>
+        <img class="mascot-img small-mascot" src="assets/mascot_homework.png" alt="">
         <h2>Домашнее задание</h2>
-        <p id="homework-text" class="muted"></p>
-        <button class="btn" id="btn-homework-close">Закрыть</button>
+        <div class="homework-content">
+          <p id="homework-text" class="muted"></p>
+        </div>
+        <button class="btn primary" id="btn-homework-close">Понятно</button>
       </div>
     </div>
 
-    <!-- Profile modal -->
     <div id="modal-profile" class="modal hidden">
-      <div class="modal-card">
-        <img class="mascot-img" src="assets/mascot_profile.png" alt="">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card bottom-sheet">
+        <div class="drag-handle"></div>
+        <img class="mascot-img small-mascot" src="assets/mascot_profile.png" alt="">
         <h2 id="profile-name" class="center big"></h2>
         <div id="profile-dob" class="center muted"></div>
 
-        <div class="stars">
+        <div class="stars-container">
           <div class="star-row">
-            <span>За домашнее задание</span>
+            <span class="star-label">За домашнее задание</span>
             <span class="badge blue"><span id="star-bible">0</span> ★</span>
           </div>
           <div class="star-row">
-            <span>За активное участие</span>
+            <span class="star-label">За активное участие</span>
             <span class="badge gold"><span id="star-truth">0</span> ★</span>
           </div>
           <div class="star-row">
-            <span>За поведение</span>
+            <span class="star-label">За поведение</span>
             <span class="badge green"><span id="star-behavior">0</span> ★</span>
           </div>
         </div>
 
-        <button class="btn" id="btn-profile-close">Закрыть</button>
+        <button class="btn secondary" id="btn-profile-close">Закрыть</button>
       </div>
     </div>
 
