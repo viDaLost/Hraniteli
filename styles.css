@@ -139,7 +139,7 @@ input:focus, textarea:focus {
 
 .error { margin-top: 12px; color: var(--danger); font-size: 14px; font-weight: 500; text-align: center; }
 
-/* Buttons (обычные) */
+/* Buttons */
 .btn {
   width: 100%;
   padding: 16px;
@@ -160,7 +160,6 @@ input:focus, textarea:focus {
 
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  contain: layout paint;
 }
 
 .btn.primary {
@@ -181,7 +180,7 @@ input:focus, textarea:focus {
   align-items: stretch;
 }
 
-/* TILE = div как кнопка (исключает баг Telegram с <button>) */
+/* TILE = div as button */
 .tile {
   display: flex;
   flex-direction: column;
@@ -198,12 +197,11 @@ input:focus, textarea:focus {
 
   cursor: pointer;
 
-  /* статично: без анимаций и без :active */
+  /* статично */
   transition: none !important;
 
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  contain: layout paint;
 }
 
 .tile-icon { font-size: 28px; }
@@ -282,7 +280,6 @@ input:focus, textarea:focus {
   transition: none !important;
 
   touch-action: manipulation;
-  contain: layout paint;
 }
 
 .card-tile.done { background: #E8F5E9; border-color: #A5D6A7; }
@@ -322,7 +319,6 @@ input:focus, textarea:focus {
   transition: none !important;
 
   touch-action: manipulation;
-  contain: layout paint;
 }
 
 .option.ok { background: #E8F5E9; border-color: #4CAF50; color: #2E7D32; }
@@ -331,28 +327,13 @@ input:focus, textarea:focus {
 @media (min-width: 440px) {
   .options-grid { grid-template-columns: 1fr 1fr; }
 }
-/* ===== Telegram iOS: делаем ВСЕ .btn полностью статичными ===== */
-button.btn,
-.btn {
-  transform: none !important;
-  -webkit-transform: none !important;
-  transition: none !important;
-}
-
-button.btn:active,
-.btn:active,
-button.btn:focus,
-button.btn:focus-visible,
-.btn:focus,
-.btn:focus-visible {
-  transform: none !important;
-  -webkit-transform: none !important;
-  filter: none !important;
-}
 
 /* На всякий — убираем системные long-press эффекты iOS */
 button,
 .btn,
+.tile,
+.option,
+.card-tile,
 input,
 textarea {
   -webkit-touch-callout: none;
@@ -364,4 +345,33 @@ textarea {
 input, textarea {
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* ===== iOS Telegram WebView: фикс "увеличения" при тапе/удержании ===== */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.btn, .tile, .option, .card-tile, button {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+
+  transform: none !important;
+  -webkit-transform: none !important;
+
+  -webkit-tap-highlight-color: transparent !important;
+
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.btn:active, .tile:active, .option:active, .card-tile:active, button:active,
+.btn:focus, .tile:focus, .option:focus, .card-tile:focus, button:focus,
+.btn:focus-visible, .tile:focus-visible, .option:focus-visible, .card-tile:focus-visible, button:focus-visible {
+  transform: none !important;
+  -webkit-transform: none !important;
+  filter: none !important;
+  outline: none !important;
 }
