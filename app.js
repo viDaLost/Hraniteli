@@ -14,91 +14,36 @@ const CACHE_TTL = {
 
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
-// ===== Telegram iOS: отключаем long-press контекст/выделение на кнопках =====
+
+// ===== Telegram iOS: убираем системные callout/selection без preventDefault() на touch =====
 (() => {
   const ua = navigator.userAgent || "";
   const isIOS = /iPad|iPhone|iPod/i.test(ua);
   const isTelegram = /Telegram/i.test(ua);
   if (!isIOS || !isTelegram) return;
 
-  // убираем контекстное меню по удержанию
-  document.addEventListener("contextmenu", (e) => {
-    const t = e.target;
-    if (t && (t.closest?.(".btn") || t.closest?.(".tile") || t.closest?.(".option") || t.closest?.(".card-tile") || t.tagName === "BUTTON")) {
-      e.preventDefault();
-    }
-  }, { passive: false });
+  const CLICKABLE = ".btn, .tile, .option, .card-tile, button";
 
-  // убираем выделение текста по удержанию на кнопках
-  document.addEventListener("selectstart", (e) => {
-    const t = e.target;
-    if (t && (t.closest?.(".btn") || t.tagName === "BUTTON")) {
-      e.preventDefault();
-    }
-  }, { passive: false });
+  // контекстное меню при удержании
+  document.addEventListener(
+    "contextmenu",
+    (e) => {
+      const t = e.target;
+      if (t && t.closest?.(CLICKABLE)) e.preventDefault();
+    },
+    { passive: false }
+  );
+
+  // выделение текста при удержании
+  document.addEventListener(
+    "selectstart",
+    (e) => {
+      const t = e.target;
+      if (t && t.closest?.(CLICKABLE)) e.preventDefault();
+    },
+    { passive: false }
+  );
 })();
-
-// ===== FastTap для Telegram iOS (убирает лаг/рывок/системный pressed) =====
-(() => {
-  const ua = navigator.userAgent || "";
-  const isIOS = /iPad|iPhone|iPod/i.test(ua);
-  const isTelegram = /Telegram/i.test(ua);
-
-  // Нужен именно для Telegram на iOS
-  if (!isIOS || !isTelegram) return;
-
-  // Не ломаем ввод/скролл: кликаем только по кнопкам и "кнопочным" элементам
-  const CLICKABLE_SELECTOR = "button, .btn, .tile, .option, .card-tile";
-
-  let moved = false;
-  let activeEl = null;
-
-  const findClickable = (target) => target?.closest?.(CLICKABLE_SELECTOR);
-
-  document.addEventListener("touchstart", (e) => {
-    const el = findClickable(e.target);
-    if (!el) return;
-
-    // Если это disabled — не трогаем
-    if (el.disabled || el.getAttribute("aria-disabled") === "true") return;
-
-    // Важно: не вмешиваться в поля ввода
-    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
-
-    moved = false;
-    activeEl = el;
-
-    // Убираем задержку и "телеграмовский" pressed-эффект
-    e.preventDefault();
-
-    el.classList.add("is-pressed");
-  }, { passive: false });
-
-  document.addEventListener("touchmove", () => {
-    moved = true;
-    if (activeEl) activeEl.classList.remove("is-pressed");
-  }, { passive: true });
-
-  document.addEventListener("touchend", (e) => {
-    const el = activeEl;
-    activeEl = null;
-
-    if (!el) return;
-    el.classList.remove("is-pressed");
-
-    // Если был скролл/сдвиг — не кликаем
-    if (moved) return;
-
-    // Имитируем обычный click мгновенно
-    el.click();
-  }, { passive: false });
-
-  document.addEventListener("touchcancel", () => {
-    if (activeEl) activeEl.classList.remove("is-pressed");
-    activeEl = null;
-  }, { passive: true });
-})();
-
 
 const $ = (id) => document.getElementById(id);
 const viewport = $("viewport");
@@ -122,7 +67,7 @@ const state = {
   initData: "",
   isAdmin: false,
   profile: null,
-  isRegistering: false, // ✅ FIX: блокируем повторные регистрации + контролим UI кнопки
+  isRegistering: false, // ✅ блокируем повторные регистрации + контролим UI кнопки
 };
 
 let pollTimer = null;
@@ -210,7 +155,6 @@ function formatDobRu(dob){
   const s = String(dob);
 
   // 1) Если пришло ISO (есть T) — парсим и берём ЛОКАЛЬНУЮ дату (не UTC)
-  // Пример: 1998-02-22T21:00:00.000Z -> в +03 это уже 1998-02-23
   if (s.includes("T")) {
     const d = new Date(s);
     if (!Number.isNaN(d.getTime())) {
@@ -219,7 +163,6 @@ function formatDobRu(dob){
       const yyyy = d.getFullYear();
       return `${dd}.${mm}.${yyyy}`;
     }
-    // fallback, если почему-то не распарсилось
     const ymd = s.slice(0, 10);
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
     if (m) return `${m[3]}.${m[2]}.${m[1]}`;
@@ -319,7 +262,6 @@ function routeFromHash(){
 }
 
 function canAccess(route){
-  // ✅ FIX: считаем "зарегистрирован", если есть state.profile ИЛИ localStorage
   const hasProfile = !!(state.profile?.name && state.profile?.dob) || hasLocalProfile();
   if (hasProfile) return true;
   return ["loading","onboarding","hello"].includes(route);
@@ -488,32 +430,8 @@ function onRouteEnter(route){
 }
 
 // -----------------------
-// Fancy button effects
+// Swipe back
 // -----------------------
-function addRipple(btn, x, y){
-  const r = document.createElement("span");
-  r.className = "ripple";
-  const rect = btn.getBoundingClientRect();
-  const size = Math.max(rect.width, rect.height);
-  r.style.width = r.style.height = `${size}px`;
-  r.style.left = `${x - rect.left - size/2}px`;
-  r.style.top  = `${y - rect.top  - size/2}px`;
-  btn.appendChild(r);
-  setTimeout(() => r.remove(), 600);
-}
-
-function wireFancyButtons(){
-  document.addEventListener("pointerdown", (ev) => {
-    const btn = ev.target?.closest?.(".btn");
-    if (!btn) return;
-    btn.classList.remove("spring");
-    void btn.offsetWidth;
-    btn.classList.add("spring");
-    addRipple(btn, ev.clientX, ev.clientY);
-    hImpact("light");
-  }, { passive: true });
-}
-
 function wireSwipeBack(){
   if (!viewport) return;
 
@@ -553,7 +471,6 @@ function wireSwipeBack(){
 function onboardingValidate(){
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
-  // ✅ FIX: если идёт регистрация — кнопка не активна
   $("btn-confirm").disabled = !(name && dob) || state.isRegistering;
 }
 
@@ -638,7 +555,6 @@ async function boot(){
     setCachedProfile(p);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
 
-    // ✅ FIX: если профиль уже есть (state или localStorage) — сразу в меню
     if ((state.profile?.name && state.profile?.dob) || hasLocalProfile()) {
       navigate("menu", { replace: true });
       return;
@@ -646,7 +562,6 @@ async function boot(){
     navigate("onboarding", { replace: true });
 
   } catch (e) {
-    // ✅ FIX: если сервер временно не ответил, но localStorage уже есть — всё равно пускаем в меню
     if (hasLocalProfile()) {
       state.profile = state.profile || {
         name: localGet("name"),
@@ -665,7 +580,6 @@ async function boot(){
   }
 }
 
-// ✅ FIX: "Подтвердить" -> "Загрузка..." пока идёт запрос + защита от повторов
 async function doRegister(){
   if (state.isRegistering) return;
 
@@ -676,17 +590,14 @@ async function doRegister(){
   const btn = $("btn-confirm");
   const prevText = btn.textContent;
 
-  // UI: сразу показать загрузку и заблокировать кнопку
   state.isRegistering = true;
   btn.disabled = true;
   btn.textContent = "Загрузка…";
 
-  // ✅ ключевой фикс от "отката": сохраняем профиль локально ДО ответа сервера
   localSet("name", name);
   localSet("dob", dob);
   state.profile = { name, dob, bible: 0, truth: 0, behavior: 0 };
 
-  // обновим кэш профиля (минимальный), чтобы canAccess() не кидал назад
   localSet("profile_cache", JSON.stringify({
     ts: Date.now(),
     isAdmin: false,
@@ -695,27 +606,23 @@ async function doRegister(){
 
   try {
     const r = await apiFast("register", { name, dob }, { force: true });
-    // если сервер вернул профиль/админа — применяем
     setCachedProfile(r);
 
     $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
     hNotify("success");
 
-    // ✅ replace=true чтобы назад не возвращало на onboarding
     navigate("hello", { replace: true });
   } catch (e) {
     $("onboarding-error").textContent = e.message;
     hNotify("error");
   } finally {
-    // возвращаем кнопку в норму (если мы остались на onboarding)
     btn.textContent = prevText;
     state.isRegistering = false;
     onboardingValidate();
   }
 }
 
-// Profile: open instantly, fill from cache, then refresh in bg
 async function openProfile(){
   showModal(modalProfile);
   hImpact("light");
@@ -796,7 +703,7 @@ function renderAdminUsers(users){
           <div class="small">${escapeHtml(formatDobRu(u.dob))}</div>
           <div class="id">tg_id: ${escapeHtml(u.tg_id)}</div>
         </div>
-        <button class="btn" data-act="save">Сохранить</button>
+        <button class="btn" data-act="save" type="button">Сохранить</button>
       </div>
 
       <div class="grid">
@@ -863,7 +770,6 @@ $("inp-name").addEventListener("input", onboardingValidate);
 $("inp-dob").addEventListener("input", onboardingValidate);
 $("btn-confirm").addEventListener("click", doRegister);
 
-// ✅ FIX: после "Вперёд" сразу меню и replace=true, чтобы не возвращало/не прыгало
 $("btn-forward").addEventListener("click", () => navigate("menu", { replace: true }));
 
 $("btn-games").addEventListener("click", () => navigate("games"));
@@ -897,6 +803,5 @@ document.addEventListener("visibilitychange", () => {
 
 // Init
 wireNavDelegation();
-wireFancyButtons();
 wireSwipeBack();
 boot();
