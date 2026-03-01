@@ -26,12 +26,12 @@
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-html, body { -webkit-text-size-adjust: 100%; }
-
 * {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+  -webkit-tap-highlight-color: transparent;
 }
+
+html, body { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -40,25 +40,6 @@ body {
   background-color: var(--bg);
   overscroll-behavior-y: none;
   user-select: none;
-}
-
-/* Убираем iOS-стили кнопок полностью */
-button {
-  -webkit-appearance: none;
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-}
-
-button:focus,
-button:focus-visible { outline: none; }
-
-input, textarea {
-  font-family: inherit;
 }
 
 /* App Wrapper */
@@ -72,7 +53,7 @@ input, textarea {
   box-shadow: 0 0 40px rgba(0,0,0,0.05);
 }
 
-/* ===== Typography ===== */
+/* Typography */
 h1 {
   margin: 0 0 8px;
   font-size: 26px;
@@ -80,20 +61,19 @@ h1 {
   line-height: 1.2;
   letter-spacing: -0.5px;
 }
-
 h2 {
   margin: 0 0 12px;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.3px;
 }
-
 p { margin: 0; line-height: 1.5; font-size: 15px; }
+
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .big { font-size: 24px; font-weight: 800; }
 
-/* ===== Layout & Screens ===== */
+/* Screens */
 .viewport {
   position: relative;
   height: 100dvh;
@@ -119,14 +99,14 @@ p { margin: 0; line-height: 1.5; font-size: 15px; }
 
 .screen.is-entering { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
 .screen.is-leaving { transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
+
 .screen.slide-in-from-right { transform: translateX(30%); opacity: 0; }
 .screen.slide-in-from-left { transform: translateX(-30%); opacity: 0; }
 .screen.slide-out-to-left { transform: translateX(-20%); opacity: 0; }
 .screen.slide-out-to-right { transform: translateX(20%); opacity: 0; }
-
 .hidden { display: none !important; }
 
-/* ===== Images ===== */
+/* Images */
 .mascot-img {
   width: 100%;
   max-width: 240px;
@@ -136,10 +116,9 @@ p { margin: 0; line-height: 1.5; font-size: 15px; }
   display: block;
   filter: drop-shadow(0 16px 24px rgba(142, 106, 75, 0.12));
 }
-
 .small-mascot { max-width: 140px; margin-bottom: 12px; }
 
-/* ===== UI Components ===== */
+/* Cards */
 .card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -169,11 +148,11 @@ input, textarea {
   background: var(--surface-alt);
   color: var(--text);
   font-size: 16px;
+  font-family: inherit;
   transition: var(--transition);
   outline: none;
   -webkit-appearance: none;
 }
-
 input::placeholder, textarea::placeholder { color: #B3ADA5; }
 
 input:focus, textarea:focus {
@@ -184,18 +163,15 @@ input:focus, textarea:focus {
 
 .error { margin-top: 12px; color: var(--danger); font-size: 14px; font-weight: 500; text-align: center; }
 
-/* ===== Кликабельные элементы (без :active вообще) ===== */
+/* ===== FIX: Telegram iOS grid/button stretch ===== */
 .btn, .tile, .option, .card-tile {
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
-  -webkit-user-select: none;
   user-select: none;
-  -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
-}
 
-/* Нажатие через класс (ставит JS) — НЕ меняет размер */
-.is-pressed {
-  opacity: 0.92;
+  /* изолируем лэйаут, чтобы WebView не "раздувал" строки грида */
+  contain: layout paint;
 }
 
 /* Buttons */
@@ -209,32 +185,34 @@ input:focus, textarea:focus {
   font-weight: 700;
   color: var(--text);
   cursor: pointer;
+
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+
   transition: opacity 120ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
+
+.btn:active { opacity: 0.92; }
 
 .btn.primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: white;
   box-shadow: var(--shadow-btn);
 }
-
-.btn.secondary {
-  background: var(--surface-alt);
-  color: var(--text);
-}
-
+.btn.secondary { background: var(--surface-alt); color: var(--text); }
 .btn.small { padding: 12px; font-size: 14px; }
 .btn[disabled] { opacity: 0.5; pointer-events: none; box-shadow: none; }
 
-/* Menus & Grids */
+/* Menus & Grid */
 .menu-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+
+  /* дополнительно стабилизирует размер рядов */
+  align-items: stretch;
 }
 
 .tile {
@@ -244,16 +222,23 @@ input:focus, textarea:focus {
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--line);
   gap: 12px;
-  height: 100%;
+
+  /* ❌ ВИНОВНИК БАГА: height:100% — УДАЛИЛИ */
+  /* height: 100%; */
+
+  /* ✅ grid и так растянет элемент */
+  align-self: stretch;
+
   transition: opacity 120ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
+.tile:active { opacity: 0.92; }
 
 .tile-icon { font-size: 28px; }
 .admin { border: 2px dashed var(--primary-light); background: transparent; box-shadow: none; }
 
 .action-row { display: flex; gap: 10px; margin-top: 16px; }
 
-/* ===== Modals (Bottom Sheets) ===== */
+/* Modals */
 .modal {
   position: fixed;
   inset: 0;
@@ -262,7 +247,6 @@ input:focus, textarea:focus {
   align-items: flex-end;
   justify-content: center;
 }
-
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -270,7 +254,6 @@ input:focus, textarea:focus {
   opacity: 0;
   animation: fadeIn 0.3s forwards;
 }
-
 .modal-card.bottom-sheet {
   position: relative;
   width: 100%;
@@ -281,7 +264,6 @@ input:focus, textarea:focus {
   box-shadow: 0 -8px 40px rgba(0,0,0,0.1);
   animation: slideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
-
 .drag-handle {
   width: 40px;
   height: 5px;
@@ -289,25 +271,22 @@ input:focus, textarea:focus {
   border-radius: 10px;
   margin: 0 auto 20px;
 }
-
 .homework-content {
   background: var(--surface-alt);
   padding: 16px;
   border-radius: var(--radius-sm);
   margin-bottom: 24px;
 }
-
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes fadeIn { to { opacity: 1; } }
 
-/* Profiles Stars */
+/* Stars */
 .stars-container {
   background: var(--surface-alt);
   border-radius: var(--radius-md);
   padding: 8px 16px;
   margin: 20px 0;
 }
-
 .star-row {
   display: flex;
   justify-content: space-between;
@@ -340,7 +319,7 @@ input:focus, textarea:focus {
 .admin-user .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .small { font-size: 12px; color: var(--muted); }
 
-/* Loading Spinner */
+/* Spinner */
 .spinner {
   width: 48px;
   height: 48px;
@@ -352,7 +331,7 @@ input:focus, textarea:focus {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ===== Games Shared Styles ===== */
+/* Games */
 .board { display: grid; gap: 12px; margin-top: 16px; }
 .top-actions { display: flex; gap: 12px; margin-bottom: 24px; }
 
@@ -369,6 +348,7 @@ input:focus, textarea:focus {
   border: 2px solid transparent;
   transition: opacity 120ms ease, background-color 220ms ease, border-color 220ms ease;
 }
+.card-tile:active { opacity: 0.92; }
 .card-tile.done { background: #E8F5E9; border-color: #A5D6A7; }
 .card-tile.wrong { background: #FFEBEE; border-color: #EF9A9A; }
 
@@ -399,6 +379,7 @@ input:focus, textarea:focus {
   justify-content: center;
   align-items: center;
 }
+.option:active { opacity: 0.92; }
 .option.ok { background: #E8F5E9; border-color: #4CAF50; color: #2E7D32; }
 .option.bad { background: #FFEBEE; border-color: #D9534F; color: #C62828; }
 
