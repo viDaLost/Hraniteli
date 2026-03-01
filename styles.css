@@ -1,6 +1,6 @@
 :root {
   /* Premium Palette */
-  --bg: #F9F6F0; /* Soft, expensive cream background */
+  --bg: #F9F6F0;
   --surface: #FFFFFF;
   --surface-alt: #F4F0E8;
 
@@ -8,7 +8,7 @@
   --muted: #857D75;
   --line: rgba(45, 41, 38, 0.08);
 
-  --primary: #8E6A4B; /* Rich coffee/bronze */
+  --primary: #8E6A4B;
   --primary-dark: #70523A;
   --primary-light: #E8DFD6;
 
@@ -29,46 +29,12 @@
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* ==== iOS/Telegram WebView: стабильные нажатия без "рывка" ==== */
-html, body {
-  -webkit-text-size-adjust: 100%;
-}
+/* ==== iOS/Telegram WebView стабильность ==== */
+html, body { -webkit-text-size-adjust: 100%; }
 
 * {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent; /* Removes web tap highlight for native feel */
-}
-
-button, input, textarea {
-  font-family: inherit;
-}
-
-/* Убираем iOS-стили кнопок и лишние фокусы */
-button {
-  -webkit-appearance: none;
-  appearance: none;
-  border: 0;
-  background: none;
-}
-
-button:focus,
-button:focus-visible {
-  outline: none;
-}
-
-/* Общая "анти-дёрг" оптимизация для кликабельных элементов */
-.btn,
-.tile,
-.option,
-.card-tile {
-  touch-action: manipulation;            /* убирает задержки и микро-скачки на тачах */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-
-  transform: translateZ(0);              /* стабилизирует GPU-компоновку */
-  backface-visibility: hidden;
-  will-change: transform, filter;        /* предсказуемая анимация */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -76,11 +42,30 @@ body {
   font-family: var(--font);
   color: var(--text);
   background-color: var(--bg);
-  overscroll-behavior-y: none; /* Prevents pull-to-refresh blank space */
-  user-select: none; /* native app feel */
+  overscroll-behavior-y: none;
+  user-select: none;
 }
 
-/* App Wrapper for desktop simulation & mobile stretch */
+/* Убираем iOS-стили кнопок */
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+button:focus,
+button:focus-visible { outline: none; }
+
+input, textarea {
+  font-family: inherit;
+}
+
+/* App Wrapper */
 .app-wrapper {
   max-width: 440px;
   margin: 0 auto;
@@ -88,7 +73,7 @@ body {
   min-height: 100dvh;
   position: relative;
   background-color: var(--bg);
-  box-shadow: 0 0 40px rgba(0,0,0,0.05); /* Only visible on desktop */
+  box-shadow: 0 0 40px rgba(0,0,0,0.05);
 }
 
 /* ===== Typography ===== */
@@ -99,19 +84,13 @@ h1 {
   line-height: 1.2;
   letter-spacing: -0.5px;
 }
-
 h2 {
   margin: 0 0 12px;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.3px;
 }
-
-p {
-  margin: 0;
-  line-height: 1.5;
-  font-size: 15px;
-}
+p { margin: 0; line-height: 1.5; font-size: 15px; }
 
 .muted { color: var(--muted); }
 .center { text-align: center; }
@@ -141,7 +120,6 @@ p {
 .bottom-action { margin-top: auto; padding-top: 24px; }
 .bottom-action.row { display: flex; gap: 12px; }
 
-/* Animations (Native Stack Navigation feel) */
 .screen.is-entering { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
 .screen.is-leaving { transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
 
@@ -161,7 +139,6 @@ p {
   display: block;
   filter: drop-shadow(0 16px 24px rgba(142, 106, 75, 0.12));
 }
-
 .small-mascot { max-width: 140px; margin-bottom: 12px; }
 
 /* ===== UI Components ===== */
@@ -171,7 +148,7 @@ p {
   box-shadow: var(--shadow-md);
   padding: 24px;
   margin-bottom: 16px;
-  border: 1px solid rgba(255,255,255,0.5); /* Soft premium edge */
+  border: 1px solid rgba(255,255,255,0.5);
 }
 
 /* Inputs */
@@ -194,7 +171,6 @@ input, textarea {
   background: var(--surface-alt);
   color: var(--text);
   font-size: 16px;
-  font-family: inherit;
   transition: var(--transition);
   outline: none;
   -webkit-appearance: none;
@@ -210,7 +186,24 @@ input:focus, textarea:focus {
 
 .error { margin-top: 12px; color: var(--danger); font-size: 14px; font-weight: 500; text-align: center; }
 
-/* Buttons */
+/* ===========================================================
+   ✅ УБРАЛИ РАСШИРЕНИЕ: НИКАКИХ transform/scale на active
+   Оставляем только opacity (не влияет на размеры)
+   + touch-action для тача
+   =========================================================== */
+.btn,
+.tile,
+.option,
+.card-tile {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+
+  /* ВАЖНО: фиксируем геометрию */
+  transform: none !important;
+}
+
 .btn {
   width: 100%;
   padding: 16px;
@@ -226,19 +219,11 @@ input:focus, textarea:focus {
   justify-content: center;
   gap: 8px;
 
-  /* Важно: мягкое нажатие без "рывка" */
-  transition:
-    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 140ms ease,
-    opacity 180ms ease,
-    box-shadow 220ms ease,
-    background-color 220ms ease,
-    border-color 220ms ease;
+  transition: opacity 140ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
 
 .btn:active {
-  transform: translateZ(0) scale(0.98);
-  filter: brightness(0.98);
+  opacity: 0.92;              /* только затемнение */
 }
 
 .btn.primary {
@@ -246,12 +231,12 @@ input:focus, textarea:focus {
   color: white;
   box-shadow: var(--shadow-btn);
 }
+.btn.primary:active { opacity: 0.92; }
 
 .btn.secondary {
   background: var(--surface-alt);
   color: var(--text);
 }
-
 .btn.small { padding: 12px; font-size: 14px; }
 .btn[disabled] { opacity: 0.5; pointer-events: none; box-shadow: none; }
 
@@ -270,7 +255,9 @@ input:focus, textarea:focus {
   border: 1px solid var(--line);
   gap: 12px;
   height: 100%;
+  transition: opacity 140ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
+.tile:active { opacity: 0.92; }
 
 .tile-icon { font-size: 28px; }
 .admin { border: 2px dashed var(--primary-light); background: transparent; box-shadow: none; }
@@ -283,7 +270,7 @@ input:focus, textarea:focus {
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: flex-end; /* Align to bottom */
+  align-items: flex-end;
   justify-content: center;
 }
 
@@ -325,9 +312,7 @@ input:focus, textarea:focus {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
-@keyframes fadeIn {
-  to { opacity: 1; }
-}
+@keyframes fadeIn { to { opacity: 1; } }
 
 /* Profiles Stars */
 .stars-container {
@@ -395,17 +380,10 @@ input:focus, textarea:focus {
   justify-content: center;
   font-size: 32px;
   cursor: pointer;
-  transition:
-    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 140ms ease,
-    background-color 220ms ease,
-    border-color 220ms ease;
   border: 2px solid transparent;
+  transition: opacity 140ms ease, background-color 220ms ease, border-color 220ms ease;
 }
-.card-tile:active {
-  transform: translateZ(0) scale(0.96);
-  filter: brightness(0.98);
-}
+.card-tile:active { opacity: 0.92; }
 .card-tile.done { background: #E8F5E9; border-color: #A5D6A7; }
 .card-tile.wrong { background: #FFEBEE; border-color: #EF9A9A; }
 
@@ -431,19 +409,12 @@ input:focus, textarea:focus {
   font-size: 16px;
   box-shadow: var(--shadow-sm);
   border: 2px solid transparent;
-  transition:
-    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 140ms ease,
-    background-color 220ms ease,
-    border-color 220ms ease;
+  transition: opacity 140ms ease, background-color 220ms ease, border-color 220ms ease;
   display: flex;
   justify-content: center;
   align-items: center;
 }
-.option:active {
-  transform: translateZ(0) scale(0.98);
-  filter: brightness(0.98);
-}
+.option:active { opacity: 0.92; }
 .option.ok { background: #E8F5E9; border-color: #4CAF50; color: #2E7D32; }
 .option.bad { background: #FFEBEE; border-color: #D9534F; color: #C62828; }
 
@@ -451,7 +422,6 @@ input:focus, textarea:focus {
   .options-grid { grid-template-columns: 1fr 1fr; }
 }
 
-/* На всякий: уважение к системному снижению анимаций */
 @media (prefers-reduced-motion: reduce) {
   .btn, .tile, .option, .card-tile,
   .screen.is-entering, .screen.is-leaving,
