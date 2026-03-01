@@ -14,6 +14,67 @@ const CACHE_TTL = {
 
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
+// ===== FastTap для Telegram iOS (убирает лаг/рывок/системный pressed) =====
+(() => {
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPad|iPhone|iPod/i.test(ua);
+  const isTelegram = /Telegram/i.test(ua);
+
+  // Нужен именно для Telegram на iOS
+  if (!isIOS || !isTelegram) return;
+
+  // Не ломаем ввод/скролл: кликаем только по кнопкам и "кнопочным" элементам
+  const CLICKABLE_SELECTOR = "button, .btn, .tile, .option, .card-tile";
+
+  let moved = false;
+  let activeEl = null;
+
+  const findClickable = (target) => target?.closest?.(CLICKABLE_SELECTOR);
+
+  document.addEventListener("touchstart", (e) => {
+    const el = findClickable(e.target);
+    if (!el) return;
+
+    // Если это disabled — не трогаем
+    if (el.disabled || el.getAttribute("aria-disabled") === "true") return;
+
+    // Важно: не вмешиваться в поля ввода
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+
+    moved = false;
+    activeEl = el;
+
+    // Убираем задержку и "телеграмовский" pressed-эффект
+    e.preventDefault();
+
+    el.classList.add("is-pressed");
+  }, { passive: false });
+
+  document.addEventListener("touchmove", () => {
+    moved = true;
+    if (activeEl) activeEl.classList.remove("is-pressed");
+  }, { passive: true });
+
+  document.addEventListener("touchend", (e) => {
+    const el = activeEl;
+    activeEl = null;
+
+    if (!el) return;
+    el.classList.remove("is-pressed");
+
+    // Если был скролл/сдвиг — не кликаем
+    if (moved) return;
+
+    // Имитируем обычный click мгновенно
+    el.click();
+  }, { passive: false });
+
+  document.addEventListener("touchcancel", () => {
+    if (activeEl) activeEl.classList.remove("is-pressed");
+    activeEl = null;
+  }, { passive: true });
+})();
+
 
 const $ = (id) => document.getElementById(id);
 const viewport = $("viewport");
