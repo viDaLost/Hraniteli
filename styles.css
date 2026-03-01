@@ -26,11 +26,7 @@
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -42,7 +38,6 @@ body {
   user-select: none;
 }
 
-/* App Wrapper */
 .app-wrapper {
   max-width: 440px;
   margin: 0 auto;
@@ -54,31 +49,15 @@ body {
 }
 
 /* Typography */
-h1 {
-  margin: 0 0 8px;
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.5px;
-}
-h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
+h1 { margin: 0 0 8px; font-size: 26px; font-weight: 800; line-height: 1.2; letter-spacing: -0.5px; }
+h2 { margin: 0 0 12px; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
 p { margin: 0; line-height: 1.5; font-size: 15px; }
-
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .big { font-size: 24px; font-weight: 800; }
 
 /* Screens */
-.viewport {
-  position: relative;
-  height: 100dvh;
-  overflow: hidden;
-}
+.viewport { position: relative; height: 100dvh; overflow: hidden; }
 
 .screen {
   position: absolute;
@@ -131,13 +110,9 @@ p { margin: 0; line-height: 1.5; font-size: 15px; }
 /* Inputs */
 .input-group { margin-bottom: 16px; }
 label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  display: block; margin-bottom: 8px;
+  color: var(--muted); font-size: 13px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
 }
 
 input, textarea {
@@ -153,6 +128,7 @@ input, textarea {
   outline: none;
   -webkit-appearance: none;
 }
+
 input::placeholder, textarea::placeholder { color: #B3ADA5; }
 
 input:focus, textarea:focus {
@@ -163,18 +139,7 @@ input:focus, textarea:focus {
 
 .error { margin-top: 12px; color: var(--danger); font-size: 14px; font-weight: 500; text-align: center; }
 
-/* ===== FIX: Telegram iOS grid/button stretch ===== */
-.btn, .tile, .option, .card-tile {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  user-select: none;
-
-  /* изолируем лэйаут, чтобы WebView не "раздувал" строки грида */
-  contain: layout paint;
-}
-
-/* Buttons */
+/* Buttons (обычные) */
 .btn {
   width: 100%;
   padding: 16px;
@@ -185,53 +150,61 @@ input:focus, textarea:focus {
   font-weight: 700;
   color: var(--text);
   cursor: pointer;
-
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 
-  transition: opacity 120ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
-}
+  /* статично: без анимаций */
+  transition: none !important;
 
-.btn:active { opacity: 0.92; }
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  contain: layout paint;
+}
 
 .btn.primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: white;
   box-shadow: var(--shadow-btn);
 }
+
 .btn.secondary { background: var(--surface-alt); color: var(--text); }
 .btn.small { padding: 12px; font-size: 14px; }
 .btn[disabled] { opacity: 0.5; pointer-events: none; box-shadow: none; }
 
-/* Menus & Grid */
+/* Grid */
 .menu-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-
-  /* дополнительно стабилизирует размер рядов */
   align-items: stretch;
 }
 
+/* TILE = div как кнопка (исключает баг Telegram с <button>) */
 .tile {
+  display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
   padding: 20px 12px;
   border-radius: var(--radius-lg);
+  background: var(--surface);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--line);
   gap: 12px;
 
-  /* ❌ ВИНОВНИК БАГА: height:100% — УДАЛИЛИ */
-  /* height: 100%; */
+  cursor: pointer;
 
-  /* ✅ grid и так растянет элемент */
-  align-self: stretch;
+  /* статично: без анимаций и без :active */
+  transition: none !important;
 
-  transition: opacity 120ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  contain: layout paint;
 }
-.tile:active { opacity: 0.92; }
 
 .tile-icon { font-size: 28px; }
 .admin { border: 2px dashed var(--primary-light); background: transparent; box-shadow: none; }
@@ -239,21 +212,9 @@ input:focus, textarea:focus {
 .action-row { display: flex; gap: 10px; margin-top: 16px; }
 
 /* Modals */
-.modal {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-.modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(26, 22, 18, 0.4);
-  opacity: 0;
-  animation: fadeIn 0.3s forwards;
-}
+.modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(26, 22, 18, 0.4); opacity: 0; animation: fadeIn 0.3s forwards; }
+
 .modal-card.bottom-sheet {
   position: relative;
   width: 100%;
@@ -264,56 +225,28 @@ input:focus, textarea:focus {
   box-shadow: 0 -8px 40px rgba(0,0,0,0.1);
   animation: slideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
-.drag-handle {
-  width: 40px;
-  height: 5px;
-  background: var(--line);
-  border-radius: 10px;
-  margin: 0 auto 20px;
-}
-.homework-content {
-  background: var(--surface-alt);
-  padding: 16px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 24px;
-}
+
+.drag-handle { width: 40px; height: 5px; background: var(--line); border-radius: 10px; margin: 0 auto 20px; }
+
+.homework-content { background: var(--surface-alt); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 24px; }
+
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes fadeIn { to { opacity: 1; } }
 
 /* Stars */
-.stars-container {
-  background: var(--surface-alt);
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  margin: 20px 0;
-}
-.star-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-}
+.stars-container { background: var(--surface-alt); border-radius: var(--radius-md); padding: 8px 16px; margin: 20px 0; }
+.star-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; }
 .star-row:not(:last-child) { border-bottom: 1px solid var(--line); }
 .star-label { font-weight: 600; font-size: 14px; }
 
-.badge {
-  padding: 6px 12px;
-  border-radius: 30px;
-  font-weight: 800;
-  font-size: 13px;
-}
+.badge { padding: 6px 12px; border-radius: 30px; font-weight: 800; font-size: 13px; }
 .blue { background: #E3F2FD; color: #1976D2; }
 .gold { background: #FFF3E0; color: #F57C00; }
 .green { background: #E8F5E9; color: #388E3C; }
 
 /* Admin Users */
 .admin-users { display: flex; flex-direction: column; gap: 12px; }
-.admin-user {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
+.admin-user { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .admin-user .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .admin-user .id { color: var(--muted); font-size: 12px; font-weight: 500; }
 .admin-user .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -321,9 +254,7 @@ input:focus, textarea:focus {
 
 /* Spinner */
 .spinner {
-  width: 48px;
-  height: 48px;
-  margin: 40px auto 20px;
+  width: 48px; height: 48px; margin: 40px auto 20px;
   border-radius: 50%;
   border: 4px solid var(--primary-light);
   border-top-color: var(--primary);
@@ -346,9 +277,14 @@ input:focus, textarea:focus {
   font-size: 32px;
   cursor: pointer;
   border: 2px solid transparent;
-  transition: opacity 120ms ease, background-color 220ms ease, border-color 220ms ease;
+
+  /* статично */
+  transition: none !important;
+
+  touch-action: manipulation;
+  contain: layout paint;
 }
-.card-tile:active { opacity: 0.92; }
+
 .card-tile.done { background: #E8F5E9; border-color: #A5D6A7; }
 .card-tile.wrong { background: #FFEBEE; border-color: #EF9A9A; }
 
@@ -366,6 +302,7 @@ input:focus, textarea:focus {
 .word-ref { margin-top: 12px; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
 
 .options-grid { grid-template-columns: 1fr; margin-bottom: 24px; }
+
 .option {
   padding: 16px;
   border-radius: var(--radius-md);
@@ -374,24 +311,23 @@ input:focus, textarea:focus {
   font-size: 16px;
   box-shadow: var(--shadow-sm);
   border: 2px solid transparent;
-  transition: opacity 120ms ease, background-color 220ms ease, border-color 220ms ease;
+
   display: flex;
   justify-content: center;
   align-items: center;
+
+  cursor: pointer;
+
+  /* статично */
+  transition: none !important;
+
+  touch-action: manipulation;
+  contain: layout paint;
 }
-.option:active { opacity: 0.92; }
+
 .option.ok { background: #E8F5E9; border-color: #4CAF50; color: #2E7D32; }
 .option.bad { background: #FFEBEE; border-color: #D9534F; color: #C62828; }
 
 @media (min-width: 440px) {
   .options-grid { grid-template-columns: 1fr 1fr; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .btn, .tile, .option, .card-tile,
-  .screen.is-entering, .screen.is-leaving,
-  .modal-card.bottom-sheet, .modal-backdrop {
-    transition: none !important;
-    animation: none !important;
-  }
 }
