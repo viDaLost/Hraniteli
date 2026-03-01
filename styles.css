@@ -1,5 +1,4 @@
 :root {
-  /* Premium Palette */
   --bg: #F9F6F0;
   --surface: #FFFFFF;
   --surface-alt: #F4F0E8;
@@ -13,9 +12,7 @@
   --primary-light: #E8DFD6;
 
   --danger: #D9534F;
-  --success: #4CAF50;
 
-  /* Geometry & Shadows */
   --radius-sm: 14px;
   --radius-md: 20px;
   --radius-lg: 28px;
@@ -29,12 +26,11 @@
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* ==== iOS/Telegram WebView стабильность ==== */
 html, body { -webkit-text-size-adjust: 100%; }
 
 * {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
 }
 
 body {
@@ -46,7 +42,7 @@ body {
   user-select: none;
 }
 
-/* Убираем iOS-стили кнопок */
+/* Убираем iOS-стили кнопок полностью */
 button {
   -webkit-appearance: none;
   appearance: none;
@@ -84,14 +80,15 @@ h1 {
   line-height: 1.2;
   letter-spacing: -0.5px;
 }
+
 h2 {
   margin: 0 0 12px;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.3px;
 }
-p { margin: 0; line-height: 1.5; font-size: 15px; }
 
+p { margin: 0; line-height: 1.5; font-size: 15px; }
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .big { font-size: 24px; font-weight: 800; }
@@ -122,11 +119,11 @@ p { margin: 0; line-height: 1.5; font-size: 15px; }
 
 .screen.is-entering { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
 .screen.is-leaving { transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
-
 .screen.slide-in-from-right { transform: translateX(30%); opacity: 0; }
 .screen.slide-in-from-left { transform: translateX(-30%); opacity: 0; }
 .screen.slide-out-to-left { transform: translateX(-20%); opacity: 0; }
 .screen.slide-out-to-right { transform: translateX(20%); opacity: 0; }
+
 .hidden { display: none !important; }
 
 /* ===== Images ===== */
@@ -139,6 +136,7 @@ p { margin: 0; line-height: 1.5; font-size: 15px; }
   display: block;
   filter: drop-shadow(0 16px 24px rgba(142, 106, 75, 0.12));
 }
+
 .small-mascot { max-width: 140px; margin-bottom: 12px; }
 
 /* ===== UI Components ===== */
@@ -186,24 +184,21 @@ input:focus, textarea:focus {
 
 .error { margin-top: 12px; color: var(--danger); font-size: 14px; font-weight: 500; text-align: center; }
 
-/* ===========================================================
-   ✅ УБРАЛИ РАСШИРЕНИЕ: НИКАКИХ transform/scale на active
-   Оставляем только opacity (не влияет на размеры)
-   + touch-action для тача
-   =========================================================== */
-.btn,
-.tile,
-.option,
-.card-tile {
+/* ===== Кликабельные элементы (без :active вообще) ===== */
+.btn, .tile, .option, .card-tile {
   touch-action: manipulation;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-
-  /* ВАЖНО: фиксируем геометрию */
-  transform: none !important;
+  -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
 }
 
+/* Нажатие через класс (ставит JS) — НЕ меняет размер */
+.is-pressed {
+  opacity: 0.92;
+}
+
+/* Buttons */
 .btn {
   width: 100%;
   padding: 16px;
@@ -218,12 +213,7 @@ input:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-
-  transition: opacity 140ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
-}
-
-.btn:active {
-  opacity: 0.92;              /* только затемнение */
+  transition: opacity 120ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
 
 .btn.primary {
@@ -231,12 +221,12 @@ input:focus, textarea:focus {
   color: white;
   box-shadow: var(--shadow-btn);
 }
-.btn.primary:active { opacity: 0.92; }
 
 .btn.secondary {
   background: var(--surface-alt);
   color: var(--text);
 }
+
 .btn.small { padding: 12px; font-size: 14px; }
 .btn[disabled] { opacity: 0.5; pointer-events: none; box-shadow: none; }
 
@@ -255,9 +245,8 @@ input:focus, textarea:focus {
   border: 1px solid var(--line);
   gap: 12px;
   height: 100%;
-  transition: opacity 140ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
+  transition: opacity 120ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
-.tile:active { opacity: 0.92; }
 
 .tile-icon { font-size: 28px; }
 .admin { border: 2px dashed var(--primary-light); background: transparent; box-shadow: none; }
@@ -308,10 +297,7 @@ input:focus, textarea:focus {
   margin-bottom: 24px;
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes fadeIn { to { opacity: 1; } }
 
 /* Profiles Stars */
@@ -381,9 +367,8 @@ input:focus, textarea:focus {
   font-size: 32px;
   cursor: pointer;
   border: 2px solid transparent;
-  transition: opacity 140ms ease, background-color 220ms ease, border-color 220ms ease;
+  transition: opacity 120ms ease, background-color 220ms ease, border-color 220ms ease;
 }
-.card-tile:active { opacity: 0.92; }
 .card-tile.done { background: #E8F5E9; border-color: #A5D6A7; }
 .card-tile.wrong { background: #FFEBEE; border-color: #EF9A9A; }
 
@@ -409,12 +394,11 @@ input:focus, textarea:focus {
   font-size: 16px;
   box-shadow: var(--shadow-sm);
   border: 2px solid transparent;
-  transition: opacity 140ms ease, background-color 220ms ease, border-color 220ms ease;
+  transition: opacity 120ms ease, background-color 220ms ease, border-color 220ms ease;
   display: flex;
   justify-content: center;
   align-items: center;
 }
-.option:active { opacity: 0.92; }
 .option.ok { background: #E8F5E9; border-color: #4CAF50; color: #2E7D32; }
 .option.bad { background: #FFEBEE; border-color: #D9534F; color: #C62828; }
 
