@@ -331,3 +331,37 @@ input:focus, textarea:focus {
 @media (min-width: 440px) {
   .options-grid { grid-template-columns: 1fr 1fr; }
 }
+/* ===== Telegram iOS: делаем ВСЕ .btn полностью статичными ===== */
+button.btn,
+.btn {
+  transform: none !important;
+  -webkit-transform: none !important;
+  transition: none !important;
+}
+
+button.btn:active,
+.btn:active,
+button.btn:focus,
+button.btn:focus-visible,
+.btn:focus,
+.btn:focus-visible {
+  transform: none !important;
+  -webkit-transform: none !important;
+  filter: none !important;
+}
+
+/* На всякий — убираем системные long-press эффекты iOS */
+button,
+.btn,
+input,
+textarea {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Но ввод в полях оставим нормальным */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
