@@ -14,6 +14,30 @@ const CACHE_TTL = {
 
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
+// ===== Telegram iOS: отключаем long-press контекст/выделение на кнопках =====
+(() => {
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPad|iPhone|iPod/i.test(ua);
+  const isTelegram = /Telegram/i.test(ua);
+  if (!isIOS || !isTelegram) return;
+
+  // убираем контекстное меню по удержанию
+  document.addEventListener("contextmenu", (e) => {
+    const t = e.target;
+    if (t && (t.closest?.(".btn") || t.closest?.(".tile") || t.closest?.(".option") || t.closest?.(".card-tile") || t.tagName === "BUTTON")) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  // убираем выделение текста по удержанию на кнопках
+  document.addEventListener("selectstart", (e) => {
+    const t = e.target;
+    if (t && (t.closest?.(".btn") || t.tagName === "BUTTON")) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+})();
+
 // ===== FastTap для Telegram iOS (убирает лаг/рывок/системный pressed) =====
 (() => {
   const ua = navigator.userAgent || "";
