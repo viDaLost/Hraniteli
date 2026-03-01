@@ -40,7 +40,7 @@
             <label>Дата рождения</label>
             <input id="inp-dob" type="date" />
           </div>
-          <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
+          <button type="button" id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
           <div id="onboarding-error" class="error"></div>
         </div>
       </section>
@@ -52,7 +52,7 @@
           <p class="muted">А теперь давай окунёмся в мир знаний.</p>
         </div>
         <div class="bottom-action">
-          <button id="btn-forward" class="btn primary">Вперёд</button>
+          <button type="button" id="btn-forward" class="btn primary">Вперёд</button>
         </div>
       </section>
 
@@ -63,19 +63,19 @@
         </div>
 
         <div class="menu-grid">
-          <button class="btn tile" id="btn-games">
+          <button type="button" class="btn tile" id="btn-games">
             <span class="tile-icon">🎮</span>
             Библейские игры
           </button>
-          <button class="btn tile" id="btn-homework">
+          <button type="button" class="btn tile" id="btn-homework">
             <span class="tile-icon">📚</span>
             Домашнее задание
           </button>
-          <button class="btn tile" id="btn-profile">
+          <button type="button" class="btn tile" id="btn-profile">
             <span class="tile-icon">👤</span>
             Мой профиль
           </button>
-          <button class="btn tile admin hidden" id="btn-admin">
+          <button type="button" class="btn tile admin hidden" id="btn-admin">
             <span class="tile-icon">⚙️</span>
             Админ
           </button>
@@ -88,17 +88,17 @@
           <h1>Библейские игры</h1>
         </div>
         <div class="menu-grid">
-          <button class="btn tile" data-nav="match">
+          <button type="button" class="btn tile" data-nav="match">
             <span class="tile-icon">🃏</span>
             Найди пару
           </button>
-          <button class="btn tile" data-nav="word">
+          <button type="button" class="btn tile" data-nav="word">
             <span class="tile-icon">🔤</span>
             Найди слово
           </button>
         </div>
         <div class="bottom-action">
-          <button class="btn secondary" id="btn-games-back">← Главное меню</button>
+          <button type="button" class="btn secondary" id="btn-games-back">← Главное меню</button>
         </div>
       </section>
 
@@ -112,20 +112,20 @@
         <div id="match-pick" class="card">
           <h2>Размер поля</h2>
           <div class="menu-grid">
-            <button class="btn tile" data-match-size="4">4 × 4</button>
-            <button class="btn tile" data-match-size="6">6 × 6</button>
-            <button class="btn tile" data-match-size="8">8 × 8</button>
+            <button type="button" class="btn tile" data-match-size="4">4 × 4</button>
+            <button type="button" class="btn tile" data-match-size="6">6 × 6</button>
+            <button type="button" class="btn tile" data-match-size="8">8 × 8</button>
           </div>
           <div class="action-row">
-            <button class="btn secondary" data-back>← Назад</button>
-            <button class="btn secondary" data-nav="menu">В меню</button>
+            <button type="button" class="btn secondary" data-back>← Назад</button>
+            <button type="button" class="btn secondary" data-nav="menu">В меню</button>
           </div>
         </div>
 
         <div id="match-game" class="hidden">
           <div class="top-actions">
-            <button class="btn secondary small" id="match-btn-back">← Сменить поле</button>
-            <button class="btn secondary small" data-nav="menu">Меню</button>
+            <button type="button" class="btn secondary small" id="match-btn-back">← Сменить поле</button>
+            <button type="button" class="btn secondary small" data-nav="menu">Меню</button>
           </div>
           <div id="match-board" class="board"></div>
         </div>
@@ -135,7 +135,7 @@
           <div class="modal-card center">
             <img class="mascot-img" src="assets/mascot_win.png" alt="">
             <h2>Молодец! Ты нашёл всем пару!</h2>
-            <button class="btn primary" id="match-btn-win-close">Закрыть</button>
+            <button type="button" class="btn primary" id="match-btn-win-close">Закрыть</button>
           </div>
         </div>
       </section>
@@ -155,8 +155,8 @@
         <div id="word-options" class="menu-grid options-grid"></div>
 
         <div class="bottom-action row">
-          <button class="btn secondary" data-back>← Назад</button>
-          <button class="btn primary" id="word-btn-next">Следующее</button>
+          <button type="button" class="btn secondary" data-back>← Назад</button>
+          <button type="button" class="btn primary" id="word-btn-next">Следующее</button>
         </div>
       </section>
 
@@ -169,7 +169,7 @@
         <div class="card">
           <h2>Домашнее задание</h2>
           <textarea id="admin-homework" rows="4" placeholder="Введите текст для всех учеников..."></textarea>
-          <button id="btn-admin-save-homework" class="btn primary">Сохранить задание</button>
+          <button type="button" id="btn-admin-save-homework" class="btn primary">Сохранить задание</button>
           <div id="admin-homework-msg" class="muted center"></div>
         </div>
 
@@ -179,7 +179,7 @@
         </div>
 
         <div class="bottom-action">
-          <button class="btn secondary" id="btn-admin-back">← Главное меню</button>
+          <button type="button" class="btn secondary" id="btn-admin-back">← Главное меню</button>
         </div>
       </section>
 
@@ -194,7 +194,7 @@
         <div class="homework-content">
           <p id="homework-text" class="muted"></p>
         </div>
-        <button class="btn primary" id="btn-homework-close">Понятно</button>
+        <button type="button" class="btn primary" id="btn-homework-close">Понятно</button>
       </div>
     </div>
 
@@ -209,19 +209,19 @@
         <div class="stars-container">
           <div class="star-row">
             <span class="star-label">За домашнее задание</span>
-            <span class="badge blue"><span id="star-bible">0</span>⭐️</span>
+            <span class="badge blue"><span id="star-bible">0</span> ⭐️</span>
           </div>
           <div class="star-row">
             <span class="star-label">За активное участие</span>
-            <span class="badge gold"><span id="star-truth">0</span>⭐️</span>
+            <span class="badge gold"><span id="star-truth">0</span> ⭐️</span>
           </div>
           <div class="star-row">
             <span class="star-label">За поведение</span>
-            <span class="badge green"><span id="star-behavior">0</span>⭐️</span>
+            <span class="badge green"><span id="star-behavior">0</span> ⭐️</span>
           </div>
         </div>
 
-        <button class="btn secondary" id="btn-profile-close">Закрыть</button>
+        <button type="button" class="btn secondary" id="btn-profile-close">Закрыть</button>
       </div>
     </div>
 
