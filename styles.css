@@ -1,6 +1,6 @@
 :root {
   /* Premium Palette */
-  --bg: #F9F6F0; /* Soft, expensive cream background */
+  --bg: #F9F6F0;
   --surface: #FFFFFF;
   --surface-alt: #F4F0E8;
   
@@ -8,7 +8,7 @@
   --muted: #857D75;
   --line: rgba(45, 41, 38, 0.08);
   
-  --primary: #8E6A4B; /* Rich coffee/bronze */
+  --primary: #8E6A4B;
   --primary-dark: #70523A;
   --primary-light: #E8DFD6;
   
@@ -31,7 +31,7 @@
 
 * { 
   box-sizing: border-box; 
-  -webkit-tap-highlight-color: transparent; /* Removes web tap highlight for native feel */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -39,8 +39,8 @@ body {
   font-family: var(--font);
   color: var(--text);
   background-color: var(--bg);
-  overscroll-behavior-y: none; /* Prevents pull-to-refresh blank space */
-  user-select: none; /* native app feel */
+  overscroll-behavior-y: none;
+  user-select: none;
 }
 
 /* App Wrapper for desktop simulation & mobile stretch */
@@ -51,31 +51,13 @@ body {
   min-height: 100dvh;
   position: relative;
   background-color: var(--bg);
-  box-shadow: 0 0 40px rgba(0,0,0,0.05); /* Only visible on desktop */
+  box-shadow: 0 0 40px rgba(0,0,0,0.05);
 }
 
 /* ===== Typography ===== */
-h1 {
-  margin: 0 0 8px;
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.5px;
-}
-
-h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
-
-p { 
-  margin: 0;
-  line-height: 1.5; 
-  font-size: 15px;
-}
-
+h1 { margin: 0 0 8px; font-size: 26px; font-weight: 800; line-height: 1.2; letter-spacing: -0.5px; }
+h2 { margin: 0 0 12px; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+p { margin: 0; line-height: 1.5; font-size: 15px; }
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .big { font-size: 24px; font-weight: 800; }
@@ -85,6 +67,7 @@ p {
   position: relative;
   height: 100dvh;
   overflow: hidden;
+  perspective: 1000px; /* Помогает при 3D-трансформациях на мобильных */
 }
 
 .screen {
@@ -95,24 +78,41 @@ p {
   padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 32px);
   display: flex;
   flex-direction: column;
-  opacity: 1;
-  transform: translateX(0);
   background-color: var(--bg);
+  
+  /* ИСПРАВЛЕНИЕ 1: Плавные переходы для экранов */
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              visibility 0.4s;
+  z-index: 1;
 }
 
-.screen-header { margin-bottom: 24px; text-align: center; }
-.bottom-action { margin-top: auto; padding-top: 24px; }
-.bottom-action.row { display: flex; gap: 12px; }
+/* ИСПРАВЛЕНИЕ 2: Чтобы CSS-анимация сработала, скрытые экраны остаются в DOM, но невидимы */
+.screen.hidden {
+  display: flex !important; 
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(15px) scale(0.98); /* Эффект легкого "всплывания" при появлении */
+  z-index: -1;
+}
 
-/* Animations (Native Stack Navigation feel) */
+/* Глобальный hidden (для остальных элементов, кроме экранов) */
+.hidden { display: none !important; }
+
+/* Модальные окна оставляем на display: none, чтобы корректно запускались @keyframes */
+.modal.hidden { display: none !important; }
+
+/* Анимации (Native Stack Navigation feel) - если они используются в JS */
 .screen.is-entering { transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease; }
 .screen.is-leaving { transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
-
 .screen.slide-in-from-right { transform: translateX(30%); opacity: 0; }
 .screen.slide-in-from-left { transform: translateX(-30%); opacity: 0; }
 .screen.slide-out-to-left { transform: translateX(-20%); opacity: 0; }
 .screen.slide-out-to-right { transform: translateX(20%); opacity: 0; }
-.hidden { display: none !important; }
 
 /* ===== Images ===== */
 .mascot-img {
@@ -134,7 +134,7 @@ p {
   box-shadow: var(--shadow-md);
   padding: 24px;
   margin-bottom: 16px;
-  border: 1px solid rgba(255,255,255,0.5); /* Soft premium edge */
+  border: 1px solid rgba(255,255,255,0.5);
 }
 
 /* Inputs */
@@ -153,10 +153,11 @@ input, textarea {
   transition: var(--transition);
   outline: none;
   -webkit-appearance: none;
+  /* ИСПРАВЛЕНИЕ: Предотвращает микролаги в полях ввода iOS */
+  transform: translateZ(0); 
 }
 
 input::placeholder, textarea::placeholder { color: #B3ADA5; }
-
 input:focus, textarea:focus {
   background: var(--surface);
   border-color: var(--primary);
@@ -180,10 +181,24 @@ input:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: transform 0.15s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+  
+  /* ИСПРАВЛЕНИЕ 3: Аппаратное ускорение для устранения резкого расширения */
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, box-shadow;
+  
+  /* Более плавная кривая анимации */
+  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              box-shadow 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              background-color 0.2s ease, 
+              opacity 0.2s ease;
 }
 
-.btn:active { transform: scale(0.97); }
+.btn:active { 
+  transform: scale(0.95) translateZ(0); /* Сохраняем translateZ для стабильности на GPU */
+}
 
 .btn.primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -191,11 +206,7 @@ input:focus, textarea:focus {
   box-shadow: var(--shadow-btn);
 }
 
-.btn.secondary {
-  background: var(--surface-alt);
-  color: var(--text);
-}
-
+.btn.secondary { background: var(--surface-alt); color: var(--text); }
 .btn.small { padding: 12px; font-size: 14px; }
 .btn[disabled] { opacity: 0.5; pointer-events: none; box-shadow: none; }
 
@@ -214,11 +225,15 @@ input:focus, textarea:focus {
   border: 1px solid var(--line);
   gap: 12px;
   height: 100%;
+  
+  /* Применяем те же антилаг-фичи к плиткам */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 .tile-icon { font-size: 28px; }
 .admin { border: 2px dashed var(--primary-light); background: transparent; box-shadow: none; }
-
 .action-row { display: flex; gap: 10px; margin-top: 16px; }
 
 /* ===== Modals (Bottom Sheets) ===== */
@@ -227,7 +242,7 @@ input:focus, textarea:focus {
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: flex-end; /* Align to bottom */
+  align-items: flex-end;
   justify-content: center;
 }
 
@@ -250,64 +265,26 @@ input:focus, textarea:focus {
   animation: slideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-.drag-handle {
-  width: 40px;
-  height: 5px;
-  background: var(--line);
-  border-radius: 10px;
-  margin: 0 auto 20px;
-}
+.drag-handle { width: 40px; height: 5px; background: var(--line); border-radius: 10px; margin: 0 auto 20px; }
+.homework-content { background: var(--surface-alt); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 24px; }
 
-.homework-content {
-  background: var(--surface-alt);
-  padding: 16px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 24px;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-@keyframes fadeIn {
-  to { opacity: 1; }
-}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fadeIn { to { opacity: 1; } }
 
 /* Profiles Stars */
-.stars-container {
-  background: var(--surface-alt);
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  margin: 20px 0;
-}
-
-.star-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-}
+.stars-container { background: var(--surface-alt); border-radius: var(--radius-md); padding: 8px 16px; margin: 20px 0; }
+.star-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; }
 .star-row:not(:last-child) { border-bottom: 1px solid var(--line); }
 .star-label { font-weight: 600; font-size: 14px; }
 
-.badge {
-  padding: 6px 12px;
-  border-radius: 30px;
-  font-weight: 800;
-  font-size: 13px;
-}
+.badge { padding: 6px 12px; border-radius: 30px; font-weight: 800; font-size: 13px; }
 .blue { background: #E3F2FD; color: #1976D2; }
 .gold { background: #FFF3E0; color: #F57C00; }
 .green { background: #E8F5E9; color: #388E3C; }
 
 /* Admin Users */
 .admin-users { display: flex; flex-direction: column; gap: 12px; }
-.admin-user {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
+.admin-user { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .admin-user .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .admin-user .id { color: var(--muted); font-size: 12px; font-weight: 500; }
 .admin-user .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -339,10 +316,17 @@ input:focus, textarea:focus {
   justify-content: center;
   font-size: 32px;
   cursor: pointer;
-  transition: var(--transition);
   border: 2px solid transparent;
+  
+  /* ИСПРАВЛЕНИЕ: Плавность игровых карточек */
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
-.card-tile:active { transform: scale(0.92); }
+
+.card-tile:active { transform: scale(0.92) translateZ(0); }
 .card-tile.done { background: #E8F5E9; border-color: #A5D6A7; }
 .card-tile.wrong { background: #FFEBEE; border-color: #EF9A9A; }
 
@@ -368,12 +352,19 @@ input:focus, textarea:focus {
   font-size: 16px;
   box-shadow: var(--shadow-sm);
   border: 2px solid transparent;
-  transition: var(--transition);
   display: flex;
   justify-content: center;
   align-items: center;
+  cursor: pointer;
+  
+  /* ИСПРАВЛЕНИЕ: Плавность кнопок вариантов ответа */
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
-.option:active { transform: scale(0.96); }
+.option:active { transform: scale(0.95) translateZ(0); }
 .option.ok { background: #E8F5E9; border-color: #4CAF50; color: #2E7D32; }
 .option.bad { background: #FFEBEE; border-color: #D9534F; color: #C62828; }
 
