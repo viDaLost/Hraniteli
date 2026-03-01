@@ -40,7 +40,7 @@
             <label>Дата рождения</label>
             <input id="inp-dob" type="date" />
           </div>
-          <button id="btn-confirm" class="btn primary" disabled>Подтвердить</button>
+          <button id="btn-confirm" class="btn primary" disabled type="button">Подтвердить</button>
           <div id="onboarding-error" class="error"></div>
         </div>
       </section>
@@ -52,7 +52,7 @@
           <p class="muted">А теперь давай окунёмся в мир знаний.</p>
         </div>
         <div class="bottom-action">
-          <button id="btn-forward" class="btn primary">Вперёд</button>
+          <button id="btn-forward" class="btn primary" type="button">Вперёд</button>
         </div>
       </section>
 
@@ -100,7 +100,7 @@
         </div>
 
         <div class="bottom-action">
-          <button class="btn secondary" id="btn-games-back">← Главное меню</button>
+          <button class="btn secondary" id="btn-games-back" type="button">← Главное меню</button>
         </div>
       </section>
 
@@ -119,15 +119,15 @@
             <div class="tile" data-match-size="8" role="button" tabindex="0">8 × 8</div>
           </div>
           <div class="action-row">
-            <button class="btn secondary" data-back>← Назад</button>
-            <button class="btn secondary" data-nav="menu">В меню</button>
+            <button class="btn secondary" data-back type="button">← Назад</button>
+            <button class="btn secondary" data-nav="menu" type="button">В меню</button>
           </div>
         </div>
 
         <div id="match-game" class="hidden">
           <div class="top-actions">
-            <button class="btn secondary small" id="match-btn-back">← Сменить поле</button>
-            <button class="btn secondary small" data-nav="menu">Меню</button>
+            <button class="btn secondary small" id="match-btn-back" type="button">← Сменить поле</button>
+            <button class="btn secondary small" data-nav="menu" type="button">Меню</button>
           </div>
           <div id="match-board" class="board"></div>
         </div>
@@ -137,7 +137,7 @@
           <div class="modal-card center">
             <img class="mascot-img" src="assets/mascot_win.png" alt="">
             <h2>Молодец! Ты нашёл всем пару!</h2>
-            <button class="btn primary" id="match-btn-win-close">Закрыть</button>
+            <button class="btn primary" id="match-btn-win-close" type="button">Закрыть</button>
           </div>
         </div>
       </section>
@@ -157,8 +157,8 @@
         <div id="word-options" class="menu-grid options-grid"></div>
 
         <div class="bottom-action row">
-          <button class="btn secondary" data-back>← Назад</button>
-          <button class="btn primary" id="word-btn-next">Следующее</button>
+          <button class="btn secondary" data-back type="button">← Назад</button>
+          <button class="btn primary" id="word-btn-next" type="button">Следующее</button>
         </div>
       </section>
 
@@ -171,7 +171,7 @@
         <div class="card">
           <h2>Домашнее задание</h2>
           <textarea id="admin-homework" rows="4" placeholder="Введите текст для всех учеников..."></textarea>
-          <button id="btn-admin-save-homework" class="btn primary">Сохранить задание</button>
+          <button id="btn-admin-save-homework" class="btn primary" type="button">Сохранить задание</button>
           <div id="admin-homework-msg" class="muted center"></div>
         </div>
 
@@ -181,7 +181,7 @@
         </div>
 
         <div class="bottom-action">
-          <button class="btn secondary" id="btn-admin-back">← Главное меню</button>
+          <button class="btn secondary" id="btn-admin-back" type="button">← Главное меню</button>
         </div>
       </section>
 
@@ -196,7 +196,7 @@
         <div class="homework-content">
           <p id="homework-text" class="muted"></p>
         </div>
-        <button class="btn primary" id="btn-homework-close">Понятно</button>
+        <button class="btn primary" id="btn-homework-close" type="button">Понятно</button>
       </div>
     </div>
 
@@ -223,7 +223,7 @@
           </div>
         </div>
 
-        <button class="btn secondary" id="btn-profile-close">Закрыть</button>
+        <button class="btn secondary" id="btn-profile-close" type="button">Закрыть</button>
       </div>
     </div>
 
