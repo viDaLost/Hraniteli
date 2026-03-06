@@ -17,7 +17,6 @@
   --radius-md: 20px;
   --radius-lg: 28px;
   --radius-xl: 36px;
-
   --shadow-sm: 0 4px 12px rgba(142, 106, 75, 0.04);
   --shadow-md: 0 12px 32px rgba(142, 106, 75, 0.08);
   --shadow-btn: 0 8px 20px rgba(142, 106, 75, 0.25);
@@ -154,7 +153,6 @@ input:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-
   /* статично: без анимаций */
   transition: none !important;
 
@@ -187,7 +185,6 @@ input:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   text-align: center;
-
   padding: 20px 12px;
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -196,7 +193,6 @@ input:focus, textarea:focus {
   gap: 12px;
 
   cursor: pointer;
-
   /* статично */
   transition: none !important;
 
@@ -227,6 +223,7 @@ input:focus, textarea:focus {
 .drag-handle { width: 40px; height: 5px; background: var(--line); border-radius: 10px; margin: 0 auto 20px; }
 
 .homework-content { background: var(--surface-alt); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 24px; }
+#homework-text { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
 
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes fadeIn { to { opacity: 1; } }
@@ -243,12 +240,62 @@ input:focus, textarea:focus {
 .green { background: #E8F5E9; color: #388E3C; }
 
 /* Admin Users */
-.admin-users { display: flex; flex-direction: column; gap: 12px; }
-.admin-user { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
-.admin-user .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.admin-user .id { color: var(--muted); font-size: 12px; font-weight: 500; }
-.admin-user .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.small { font-size: 12px; color: var(--muted); }
+.admin-users {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-user {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.admin-user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.admin-user-name { font-weight: 700; font-size: 15px; }
+.admin-user-dob { color: var(--muted); font-size: 12px; margin-left: 8px; }
+.admin-user-id { color: var(--muted); font-size: 11px; }
+
+.admin-user-scores {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.score-item {
+  display: flex;
+  align-items: center;
+  background: var(--surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  flex: 1;
+}
+.score-item span { font-size: 14px; margin-right: 4px; }
+.score-item input {
+  padding: 2px;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.score-item input:focus { background: var(--surface); }
+.btn-save-user {
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* Spinner */
 .spinner {
@@ -308,7 +355,6 @@ input:focus, textarea:focus {
   font-size: 16px;
   box-shadow: var(--shadow-sm);
   border: 2px solid transparent;
-
   display: flex;
   justify-content: center;
   align-items: center;
