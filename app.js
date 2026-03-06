@@ -1,827 +1,240 @@
-// app.js (FAST UI + cache + dedupe)
-// Always start with LOADING -> check server -> route
-// SPA + animations + Telegram haptics
-
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyXbnpE6gEiaLbLM23GpzSbyXhWwZShVEVYTJxJ2agSEB2-ytDBBdji5T9WA8zcJ5R4/exec";
-const POLL_MS = 10_000;
-
-// Client cache TTL (UI should respond instantly)
-const CACHE_TTL = {
-  getProfile: 60_000,
-  adminListUsers: 20_000,
-  getHomework: 60_000,
-};
-
-const tg = window.Telegram?.WebApp;
-if (tg) tg.expand();
-
-// ===== Telegram iOS: убираем системные callout/selection без preventDefault() на touch =====
-(() => {
-  const ua = navigator.userAgent || "";
-  const isIOS = /iPad|iPhone|iPod/i.test(ua);
-  const isTelegram = /Telegram/i.test(ua);
-  if (!isIOS || !isTelegram) return;
-
-  const CLICKABLE = ".btn, .tile, .option, .card-tile, button";
-
-  // контекстное меню при удержании
-  document.addEventListener(
-    "contextmenu",
-    (e) => {
-      const t = e.target;
-      if (t && t.closest?.(CLICKABLE)) e.preventDefault();
-    },
-    { passive: false }
-  );
-
-  // выделение текста при удержании
-  document.addEventListener(
-    "selectstart",
-    (e) => {
-      const t = e.target;
-      if (t && t.closest?.(CLICKABLE)) e.preventDefault();
-    },
-    { passive: false }
-  );
-})();
-
-const $ = (id) => document.getElementById(id);
-const viewport = $("viewport");
-
-const screens = {
-  loading: $("screen-loading"),
-  onboarding: $("screen-onboarding"),
-  hello: $("screen-hello"),
-  menu: $("screen-menu"),
-  games: $("screen-games"),
-  match: $("screen-match"),
-  word: $("screen-word"),
-  admin: $("screen-admin"),
-};
-
-const modalHomework = $("modal-homework");
-const modalProfile = $("modal-profile");
-
-const state = {
-  tgId: null,
-  initData: "",
-  isAdmin: false,
-  profile: null,
-  isRegistering: false, // ✅ блокируем повторные регистрации + контролим UI кнопки
-};
-
-let pollTimer = null;
-let navStack = [];
-let isTransitioning = false;
-let allAdminUsers = []; // Кэш для поиска по пользователям
-
-// -----------------------
-// Telegram Haptics helpers
-// -----------------------
-function hImpact(style = "light") { try { tg?.HapticFeedback?.impactOccurred?.(style); } catch {} }
-function hNotify(type = "success") { try { tg?.HapticFeedback?.notificationOccurred?.(type); } catch {} }
-function hSelect() { try { tg?.HapticFeedback?.selectionChanged?.(); } catch {} }
-
-// -----------------------
-function showModal(el){ el.classList.remove("hidden"); }
-function hideModal(el){ el.classList.add("hidden"); }
-function isVisible(el){ return el && !el.classList.contains("hidden"); }
-
-function bindModalClose(modalEl, closeBtnEl){
-  if (!modalEl || !closeBtnEl) return;
-  const close = (ev) => {
-    ev?.preventDefault?.();
-    ev?.stopPropagation?.();
-    hImpact("light");
-    hideModal(modalEl);
-  };
-  closeBtnEl.addEventListener("click", close);
-  closeBtnEl.addEventListener("touchend", close, { passive: false });
-
-  modalEl.addEventListener("click", (ev) => { if (ev.target === modalEl) hideModal(modalEl); });
-  modalEl.addEventListener("touchend", (ev) => { if (ev.target === modalEl) hideModal(modalEl); }, { passive: true });
-}
-
-function localGet(key){ return localStorage.getItem(key) || ""; }
-function localSet(key,val){ localStorage.setItem(key, String(val)); }
-
-function getTelegramIdentity(){
-  if (!tg) return null;
-  const u = tg.initDataUnsafe?.user;
-  if (!u?.id) return null;
-  return { id: String(u.id) };
-}
-
-async function api(action, payload = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const res = await fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify({ action, initData: state.initData, ...payload }),
-      cache: "no-store",
-      signal: controller.signal,
-      redirect: "follow",
-    });
-
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`);
-
-    let data;
-    try { data = JSON.parse(text); }
-    catch { throw new Error("Сервер вернул не-JSON: " + text.slice(0, 160)); }
-
-    if (!data.ok) throw new Error(data.error || "API error");
-    return data;
-  } catch (e) {
-    if (e?.name === "AbortError") throw new Error("Таймаут запроса (15с)");
-    throw new Error(e?.message || "Load failed");
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, (c)=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-  }[c]));
-}
-
-// -----------------------
-// ✅ FIX: DOB formatting (no timezone shift) + RU format DD.MM.YYYY
-// -----------------------
-function formatDobRu(dob){
-  if (!dob) return "";
-  const s = String(dob);
-
-  if (s.includes("T")) {
-    const d = new Date(s);
-    if (!Number.isNaN(d.getTime())) {
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const yyyy = d.getFullYear();
-      return `${dd}.${mm}.${yyyy}`;
-    }
-    const ymd = s.slice(0, 10);
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-    if (m) return `${m[3]}.${m[2]}.${m[1]}`;
-    return ymd;
-  }
-
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (m) return `${m[3]}.${m[2]}.${m[1]}`;
-
-  const m2 = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s);
-  if (m2) return s;
-
-  return s;
-}
-
-// -----------------------
-// ✅ Dedupe + TTL cache for API calls
-// -----------------------
-const inFlight = new Map(); // key -> Promise
-const memCache = new Map(); // key -> {ts, data}
-
-function cacheKey(action, payload){
-  return action + "::" + JSON.stringify(payload || {});
-}
-
-async function apiFast(action, payload = {}, { ttl = 0, force = false } = {}) {
-  const key = cacheKey(action, payload);
-
-  if (!force && ttl > 0) {
-    const hit = memCache.get(key);
-    if (hit && (Date.now() - hit.ts) < ttl) return hit.data;
-  }
-
-  if (inFlight.has(key)) return inFlight.get(key);
-
-  const p = api(action, payload)
-    .then((data) => {
-      if (ttl > 0) memCache.set(key, { ts: Date.now(), data });
-      return data;
-    })
-    .finally(() => inFlight.delete(key));
-
-  inFlight.set(key, p);
-  return p;
-}
-
-function setCachedProfile(p){
-  state.isAdmin = !!p.isAdmin;
-  state.profile = p.profile || state.profile;
-
-  if (state.profile?.name) localSet("name", state.profile.name);
-  if (state.profile?.dob) localSet("dob", state.profile.dob);
-
-  if (state.profile) {
-    localSet("profile_cache", JSON.stringify({
-      ts: Date.now(),
-      isAdmin: state.isAdmin,
-      profile: state.profile
-    }));
-  }
-}
-
-function getCachedProfile(){
-  if (state.profile?.name && state.profile?.dob) return { isAdmin: state.isAdmin, profile: state.profile };
-
-  try{
-    const raw = localGet("profile_cache");
-    if (!raw) return null;
-    const obj = JSON.parse(raw);
-    if (!obj?.profile) return null;
-    if (Date.now() - (obj.ts || 0) > 24*60*60*1000) return null;
-    return { isAdmin: !!obj.isAdmin, profile: obj.profile };
-  }catch{
-    return null;
-  }
-}
-
-function hasLocalProfile(){
-  const n = localGet("name").trim();
-  const d = localGet("dob").trim();
-  return !!(n && d);
-}
-
-// -----------------------
-// SPA Router + Transitions
-// -----------------------
-function routeFromHash(){
-  const h = (location.hash || "").replace(/^#/, "");
-  if (!h) return "loading";
-  const parts = h.split("/").filter(Boolean);
-  return parts[0] || "loading";
-}
-
-function canAccess(route){
-  const hasProfile = !!(state.profile?.name && state.profile?.dob) || hasLocalProfile();
-  if (hasProfile) return true;
-  return ["loading","onboarding","hello"].includes(route);
-}
-
-function setActiveScreen(route, direction = "forward"){
-  const next = screens[route];
-  if (!next) return;
-
-  const currentRoute = navStack.length ? navStack[navStack.length - 1].route : null;
-  const current = currentRoute ? screens[currentRoute] : null;
-
-  if (current === next) {
-    Object.values(screens).forEach(s => s?.classList?.add("hidden"));
-    next.classList.remove("hidden");
-    next.classList.add("is-active");
-    return;
-  }
-
-  if (isTransitioning) return;
-  isTransitioning = true;
-
-  Object.values(screens).forEach(s => {
-    if (!s) return;
-    if (s !== current && s !== next) {
-      s.classList.add("hidden");
-      s.classList.remove("is-active","is-entering","is-leaving","slide-in-from-right","slide-in-from-left","slide-out-to-left","slide-out-to-right");
-    }
-  });
-
-  if (current) {
-    current.classList.remove("hidden");
-    current.classList.add("is-active");
-  }
-
-  next.classList.remove("hidden");
-
-  next.classList.remove("is-active","is-entering","is-leaving","slide-in-from-right","slide-in-from-left","slide-out-to-left","slide-out-to-right");
-  if (direction === "back") {
-    next.classList.add("slide-in-from-left");
-    if (current) current.classList.add("slide-out-to-right");
-  } else {
-    next.classList.add("slide-in-from-right");
-    if (current) current.classList.add("slide-out-to-left");
-  }
-
-  void next.offsetWidth;
-
-  next.classList.add("is-entering");
-  if (current) current.classList.add("is-leaving");
-
-  requestAnimationFrame(() => {
-    next.classList.add("is-active");
-    next.classList.remove("slide-in-from-right","slide-in-from-left");
-    if (current) {
-      current.classList.remove("is-active");
-      current.classList.remove("slide-out-to-left","slide-out-to-right");
-    }
-  });
-
-  const done = () => {
-    next.classList.remove("is-entering");
-    if (current) {
-      current.classList.add("hidden");
-      current.classList.remove("is-leaving");
-    }
-    isTransitioning = false;
-  };
-
-  let settled = false;
-  const onEnd = (ev) => {
-    if (ev.target !== next) return;
-    if (settled) return;
-    settled = true;
-    next.removeEventListener("transitionend", onEnd);
-    done();
-  };
-  next.addEventListener("transitionend", onEnd);
-  setTimeout(() => {
-    if (settled) return;
-    settled = true;
-    next.removeEventListener("transitionend", onEnd);
-    done();
-  }, 520);
-}
-
-function navigate(route, { replace = false } = {}){
-  if (!screens[route]) route = "menu";
-  if (!canAccess(route)) route = "onboarding";
-
-  const current = navStack.length ? navStack[navStack.length - 1].route : null;
-
-  if (replace) {
-    if (navStack.length) navStack[navStack.length - 1] = { route };
-    else navStack.push({ route });
-  } else {
-    if (current !== route) navStack.push({ route });
-  }
-
-  const newHash = `#${route}`;
-  if (replace) history.replaceState({ route }, "", newHash);
-  else history.pushState({ route }, "", newHash);
-
-  setActiveScreen(route, "forward");
-  onRouteEnter(route);
-}
-
-function goBack(){
-  if (navStack.length <= 1) {
-    navigate("menu", { replace: true });
-    return;
-  }
-  const current = navStack[navStack.length - 1]?.route;
-  if (current === "match") window.MatchGame?.reset?.();
-  history.back();
-}
-
-window.addEventListener("popstate", () => {
-  const r = routeFromHash();
-  const last = navStack.length ? navStack[navStack.length - 1].route : null;
-  if (last === r) return;
-
-  let idx = -1;
-  for (let i = navStack.length - 1; i >= 0; i--) {
-    if (navStack[i].route === r) { idx = i; break; }
-  }
-
-  if (idx >= 0) {
-    navStack = navStack.slice(0, idx + 1);
-    setActiveScreen(r, "back");
-  } else {
-    navStack.push({ route: r });
-    setActiveScreen(r, "forward");
-  }
-  onRouteEnter(r);
-});
-
-// -----------------------
-// Route enter hooks
-// -----------------------
-let gamesInited = { match: false, word: false };
-
-function onRouteEnter(route){
-  hideModal(modalHomework);
-  hideModal(modalProfile);
-
-  try {
-    if (tg?.BackButton) {
-      if (["menu","onboarding","loading"].includes(route)) tg.BackButton.hide();
-      else {
-        tg.BackButton.show();
-        tg.BackButton.onClick(goBack);
-      }
-    }
-  } catch {}
-
-  if (route === "match" && !gamesInited.match) {
-    window.MatchGame?.init?.({ hImpact, hNotify, hSelect, onNav: navigate, onBack: goBack });
-    gamesInited.match = true;
-  }
-
-  if (route === "word" && !gamesInited.word) {
-    window.WordGame?.init?.({ hImpact, hNotify, hSelect });
-    gamesInited.word = true;
-  }
-}
-
-// -----------------------
-// Swipe back
-// -----------------------
-function wireSwipeBack(){
-  if (!viewport) return;
-
-  let tracking = false;
-  let startX = 0;
-  let startY = 0;
-
-  viewport.addEventListener("pointerdown", (ev) => {
-    if (ev.clientX > 18) return;
-    tracking = true;
-    startX = ev.clientX;
-    startY = ev.clientY;
-  }, { passive: true });
-
-  viewport.addEventListener("pointermove", (ev) => {
-    if (!tracking) return;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    if (dx > 26 && Math.abs(dy) < 22) hSelect();
-  }, { passive: true });
-
-  viewport.addEventListener("pointerup", (ev) => {
-    if (!tracking) return;
-    tracking = false;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    if (dx > 84 && Math.abs(dy) < 40) {
-      goBack();
-      hImpact("medium");
-    }
-  }, { passive: true });
-}
-
-// -----------------------
-// App logic
-// -----------------------
-function onboardingValidate(){
-  const name = $("inp-name").value.trim();
-  const dob = $("inp-dob").value.trim();
-  $("btn-confirm").disabled = !(name && dob) || state.isRegistering;
-}
-
-function applyProfileToUI(profile){
-  if (!profile) return;
-  if (isVisible(modalProfile)){
-    $("profile-name").textContent = profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = profile.dob ? formatDobRu(profile.dob) : (localGet("dob") || "");
-    $("star-bible").textContent = profile.bible ?? 0;
-    $("star-truth").textContent = profile.truth ?? 0;
-    $("star-behavior").textContent = profile.behavior ?? 0;
-  }
-}
-
-function applyHomeworkToUI(homeworkText){
-  if (isVisible(modalHomework)){
-    $("homework-text").textContent = homeworkText || "Пока нет задания 🙂";
-  }
-  if (screens.admin && screens.admin.classList.contains("is-active")){
-    const ta = $("admin-homework");
-    const isEditing = document.activeElement === ta;
-    if (ta && !isEditing) ta.value = homeworkText || "";
-  }
-}
-
-function startPolling(){
-  if (pollTimer) return;
-  pollTimer = setInterval(pollTick, POLL_MS);
-}
-
-async function pollTick(){
-  if (document.hidden) return;
-  if (!state.initData) return;
-
-  try{
-    const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
-    setCachedProfile(p);
-    applyProfileToUI(state.profile);
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  }catch{}
-
-  const needHomework = isVisible(modalHomework) || (screens.admin && screens.admin.classList.contains("is-active"));
-  if (needHomework){
-    try{
-      const hw = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
-      applyHomeworkToUI(hw.homework_text || "");
-    }catch{}
-  }
-}
-
-async function boot(){
-  hideModal(modalHomework);
-  hideModal(modalProfile);
-
-  navStack = [{ route: "loading" }];
-  history.replaceState({ route: "loading" }, "", "#loading");
-  setActiveScreen("loading", "forward");
-  onRouteEnter("loading");
-
-  state.initData = tg?.initData || "";
-  const ident = getTelegramIdentity();
-  state.tgId = ident?.id || null;
-
-  if (!state.tgId || !state.initData) {
-    navigate("onboarding", { replace: true });
-    $("onboarding-error").textContent =
-      "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
-    return;
-  }
-
-  const cached = getCachedProfile();
-  if (cached?.profile) {
-    state.isAdmin = !!cached.isAdmin;
-    state.profile = cached.profile;
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  }
-
-  startPolling();
-
-  try {
-    const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
-    setCachedProfile(p);
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-
-    if ((state.profile?.name && state.profile?.dob) || hasLocalProfile()) {
-      navigate("menu", { replace: true });
-      return;
-    }
-    navigate("onboarding", { replace: true });
-
-  } catch (e) {
-    if (hasLocalProfile()) {
-      state.profile = state.profile || {
-        name: localGet("name"),
-        dob: localGet("dob"),
-        bible: 0,
-        truth: 0,
-        behavior: 0,
-      };
-      navigate("menu", { replace: true });
-      return;
-    }
-
-    navigate("onboarding", { replace: true });
-    $("onboarding-error").textContent = e.message;
-    hNotify("error");
-  }
-}
-
-async function doRegister(){
-  if (state.isRegistering) return;
-
-  const name = $("inp-name").value.trim();
-  const dob = $("inp-dob").value.trim();
-  $("onboarding-error").textContent = "";
-
-  const btn = $("btn-confirm");
-  const prevText = btn.textContent;
-
-  state.isRegistering = true;
-  btn.disabled = true;
-  btn.textContent = "Загрузка…";
-
-  localSet("name", name);
-  localSet("dob", dob);
-  state.profile = { name, dob, bible: 0, truth: 0, behavior: 0 };
-
-  localSet("profile_cache", JSON.stringify({
-    ts: Date.now(),
-    isAdmin: false,
-    profile: state.profile
-  }));
-
-  try {
-    const r = await apiFast("register", { name, dob }, { force: true });
-    setCachedProfile(r);
-
-    $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-    hNotify("success");
-
-    navigate("hello", { replace: true });
-  } catch (e) {
-    $("onboarding-error").textContent = e.message;
-    hNotify("error");
-  } finally {
-    btn.textContent = prevText;
-    state.isRegistering = false;
-    onboardingValidate();
-  }
-}
-
-async function openProfile(){
-  showModal(modalProfile);
-  hImpact("light");
-
-  const cached = getCachedProfile();
-  if (cached?.profile) {
-    $("profile-name").textContent = cached.profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = cached.profile.dob ? formatDobRu(cached.profile.dob) : (localGet("dob") || "");
-    $("star-bible").textContent = cached.profile.bible ?? 0;
-    $("star-truth").textContent = cached.profile.truth ?? 0;
-    $("star-behavior").textContent = cached.profile.behavior ?? 0;
-  } else {
-    $("profile-name").textContent = localGet("name") || "Пользователь";
-    $("profile-dob").textContent = localGet("dob") || "";
-  }
-
-  try {
-    const r = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
-    setCachedProfile(r);
-    applyProfileToUI(state.profile);
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  } catch {}
-}
-
-async function openHomework(){
-  showModal(modalHomework);
-  $("homework-text").textContent = "Загрузка…";
-
-  try {
-    const r = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
-    $("homework-text").textContent = r.homework_text || "Пока нет задания 🙂";
-  } catch (e) {
-    $("homework-text").textContent = "Не удалось загрузить: " + e.message;
-  }
-}
-
-async function openAdmin(){
-  navigate("admin");
-  hImpact("light");
-
-  $("admin-homework").value = "Загрузка...";
-  try {
-    const hw = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
-    $("admin-homework").value = hw.homework_text || "";
-  } catch {
-    $("admin-homework").value = "";
-  }
-
-  await refreshAdminUsersFast();
-}
-
-async function refreshAdminUsersFast(){
-  const wrap = $("admin-users");
-  wrap.innerHTML = `<div class="admin-user"><div class="small center">Загрузка пользователей…</div></div>`;
-
-  try {
-    const r = await apiFast("adminListUsers", {}, { ttl: CACHE_TTL.adminListUsers });
-    allAdminUsers = r.users || [];
-    renderAdminUsers(allAdminUsers);
-  } catch (e) {
-    wrap.innerHTML = '<div class="error">Ошибка: ' + escapeHtml(e.message) + '</div>';
-  }
-}
-
-function renderAdminUsers(users){
-  const wrap = $("admin-users");
-  wrap.innerHTML = "";
-
-  if (!users || users.length === 0) {
-    wrap.innerHTML = '<div class="muted center" style="padding: 12px;">Никого не найдено</div>';
-    return;
-  }
-
-  users.forEach(u => {
-    const el = document.createElement("div");
-    el.className = "admin-user";
-    el.innerHTML = `
-      <div class="admin-user-header">
-        <div>
-          <span class="admin-user-name">${escapeHtml(u.name || "Без имени")}</span>
-          <span class="admin-user-dob">${escapeHtml(formatDobRu(u.dob))}</span>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Хранитель света</title>
+  <meta name="theme-color" content="#F9F6F0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app app-wrapper">
+    <div class="viewport" id="viewport">
+
+      <section id="screen-loading" class="screen center" data-route="loading">
+        <div class="spinner" aria-hidden="true"></div>
+        <h1 class="big">Загрузка…</h1>
+        <p class="muted">Проверяем ваши данные</p>
+      </section>
+
+      <section id="screen-onboarding" class="screen hidden" data-route="onboarding">
+        <img class="mascot-img" src="assets/mascot_onboarding.png" alt="">
+        <div class="screen-header">
+          <h1>Привет! Я Хранитель света</h1>
+          <p class="muted">
+            Я твой проводник и помощник в изучении священного писания.
+            Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
+          </p>
         </div>
-        <div class="admin-user-id">id: ${escapeHtml(u.tg_id)}</div>
+
+        <div class="card">
+          <div class="input-group">
+            <label>Имя</label>
+            <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
+          </div>
+          <div class="input-group">
+            <label>Дата рождения</label>
+            <input id="inp-dob" type="date" />
+          </div>
+          <button id="btn-confirm" class="btn primary" disabled type="button">Подтвердить</button>
+          <div id="onboarding-error" class="error"></div>
+        </div>
+      </section>
+
+      <section id="screen-hello" class="screen hidden" data-route="hello">
+        <div class="screen-content center">
+          <img class="mascot-img" src="assets/mascot_hello.png" alt="">
+          <h1 id="hello-title">Отлично, рад познакомиться!</h1>
+          <p class="muted">А теперь давай окунёмся в мир знаний.</p>
+        </div>
+        <div class="bottom-action">
+          <button id="btn-forward" class="btn primary" type="button">Вперёд</button>
+        </div>
+      </section>
+
+      <section id="screen-menu" class="screen hidden" data-route="menu">
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_menu.png" alt="">
+          <h1>Главное меню</h1>
+        </div>
+
+        <div class="menu-grid">
+          <div class="tile" id="btn-games" role="button" tabindex="0">
+            <span class="tile-icon">🎮</span>
+            Библейские игры
+          </div>
+          <div class="tile" id="btn-homework" role="button" tabindex="0">
+            <span class="tile-icon">📚</span>
+            Домашнее задание
+          </div>
+          <div class="tile" id="btn-profile" role="button" tabindex="0">
+            <span class="tile-icon">👤</span>
+            Мой профиль
+          </div>
+          <div class="tile admin hidden" id="btn-admin" role="button" tabindex="0">
+            <span class="tile-icon">⚙️</span>
+            Админ
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-games" class="screen hidden" data-route="games">
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_games.png" alt="">
+          <h1>Библейские игры</h1>
+        </div>
+
+        <div class="menu-grid">
+          <div class="tile" data-nav="match" role="button" tabindex="0">
+            <span class="tile-icon">🃏</span>
+            Найди пару
+          </div>
+          <div class="tile" data-nav="word" role="button" tabindex="0">
+            <span class="tile-icon">🔤</span>
+            Найди слово
+          </div>
+        </div>
+
+        <div class="bottom-action">
+          <button class="btn secondary" id="btn-games-back" type="button">← Главное меню</button>
+        </div>
+      </section>
+
+      <section id="screen-match" class="screen hidden" data-route="match">
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_match.png" alt="">
+          <h1>Найди пару</h1>
+          <p class="muted">Переворачивай карточки и ищи совпадения</p>
+        </div>
+
+        <div id="match-pick" class="card">
+          <h2>Размер поля</h2>
+          <div class="menu-grid">
+            <div class="tile" data-match-size="4" role="button" tabindex="0">4 × 4</div>
+            <div class="tile" data-match-size="6" role="button" tabindex="0">6 × 6</div>
+            <div class="tile" data-match-size="8" role="button" tabindex="0">8 × 8</div>
+          </div>
+          <div class="action-row">
+            <button class="btn secondary" data-back type="button">← Назад</button>
+            <button class="btn secondary" data-nav="menu" type="button">В меню</button>
+          </div>
+        </div>
+
+        <div id="match-game" class="hidden">
+          <div class="top-actions">
+            <button class="btn secondary small" id="match-btn-back" type="button">← Сменить поле</button>
+            <button class="btn secondary small" data-nav="menu" type="button">Меню</button>
+          </div>
+          <div id="match-board" class="board"></div>
+        </div>
+
+        <div id="match-win" class="modal hidden">
+          <div class="modal-backdrop"></div>
+          <div class="modal-card center">
+            <img class="mascot-img" src="assets/mascot_win.png" alt="">
+            <h2>Молодец! Ты нашёл всем пару!</h2>
+            <button class="btn primary" id="match-btn-win-close" type="button">Закрыть</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-word" class="screen hidden" data-route="word">
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_word.png" alt="">
+          <h1>Найди слово</h1>
+          <p class="muted">Выбери слово, которое подходит в пропуск.</p>
+        </div>
+
+        <div class="card verse-card">
+          <div id="word-verse" class="verse"></div>
+          <div id="word-ref" class="muted word-ref"></div>
+        </div>
+
+        <div id="word-options" class="menu-grid options-grid"></div>
+
+        <div class="bottom-action row">
+          <button class="btn secondary" data-back type="button">← Назад</button>
+          <button class="btn primary" id="word-btn-next" type="button">Следующее</button>
+        </div>
+      </section>
+
+      <section id="screen-admin" class="screen hidden" data-route="admin">
+        <div class="screen-header">
+          <h1>Админ-панель</h1>
+        </div>
+
+        <div class="card">
+          <h2>Домашнее задание</h2>
+          <textarea id="admin-homework" rows="4" placeholder="Введите текст для всех учеников..."></textarea>
+          <button id="btn-admin-save-homework" class="btn primary" type="button" style="margin-top: 12px;">Сохранить задание</button>
+          <div id="admin-homework-msg" class="muted center" style="margin-top: 8px;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Пользователи</h2>
+          <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <input type="text" id="admin-search-user" placeholder="Имя или ID..." style="margin-bottom: 0; flex: 1;" />
+            <button id="btn-admin-search" class="btn primary" type="button" style="width: auto; padding: 0 16px;">Искать</button>
+          </div>
+          
+          <div id="admin-users" class="admin-users"></div>
+        </div>
+
+        <div class="bottom-action">
+          <button class="btn secondary" id="btn-admin-back" type="button">← Главное меню</button>
+        </div>
+      </section>
+
+    </div>
+
+    <div id="modal-homework" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card bottom-sheet">
+        <div class="drag-handle"></div>
+        <img class="mascot-img small-mascot" src="assets/mascot_homework.png" alt="">
+        <h2>Домашнее задание</h2>
+        <div class="homework-content">
+          <p id="homework-text" class="muted"></p>
+        </div>
+        <button class="btn primary" id="btn-homework-close" type="button">Понятно</button>
       </div>
+    </div>
 
-      <div class="admin-user-scores">
-        <div class="score-item" title="Домашнее задание">
-          <span>📚</span>
-          <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
+    <div id="modal-profile" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card bottom-sheet">
+        <div class="drag-handle"></div>
+        <img class="mascot-img small-mascot" src="assets/mascot_profile.png" alt="">
+        <h2 id="profile-name" class="center big"></h2>
+        <div id="profile-dob" class="center muted"></div>
+
+        <div class="stars-container">
+          <div class="star-row">
+            <span class="star-label">За домашнее задание</span>
+            <span class="badge blue"><span id="star-bible">0</span> ⭐️</span>
+          </div>
+          <div class="star-row">
+            <span class="star-label">За активное участие</span>
+            <span class="badge gold"><span id="star-truth">0</span> ⭐️</span>
+          </div>
+          <div class="star-row">
+            <span class="star-label">За поведение</span>
+            <span class="badge green"><span id="star-behavior">0</span> ⭐️</span>
+          </div>
         </div>
-        <div class="score-item" title="Активное участие">
-          <span>🔥</span>
-          <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
-        </div>
-        <div class="score-item" title="Поведение">
-          <span>😇</span>
-          <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
-        </div>
-        <button class="btn primary btn-save-user" data-act="save" type="button">✓</button>
+
+        <button class="btn secondary" id="btn-profile-close" type="button">Закрыть</button>
       </div>
-      <div class="small center" style="margin-top: 6px;" data-msg></div>
-    `;
+    </div>
 
-    el.querySelector('[data-act="save"]').addEventListener("click", async () => {
-      const bible = Number(el.querySelector('[data-k="bible"]').value || 0);
-      const truth = Number(el.querySelector('[data-k="truth"]').value || 0);
-      const behavior = Number(el.querySelector('[data-k="behavior"]').value || 0);
-      const msg = el.querySelector("[data-msg]");
-      msg.textContent = "⏳ Сохранение...";
+  </div>
 
-      try {
-        await apiFast("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior }, { force: true });
-        memCache.forEach((_, k) => { if (k.startsWith("adminListUsers::")) memCache.delete(k); });
-        
-        msg.textContent = "✅ Сохранено";
-        msg.style.color = "var(--primary-dark)";
-        hNotify("success");
-        
-        setTimeout(() => { if(msg) msg.textContent = ""; }, 2000);
-      } catch(e){
-        msg.textContent = "❌ Ошибка: " + e.message;
-        msg.style.color = "var(--danger)";
-        hNotify("error");
-      }
-    });
-
-    wrap.appendChild(el);
-  });
-}
-
-function wireNavDelegation(){
-  document.addEventListener("click", (ev) => {
-    const navEl = ev.target?.closest?.("[data-nav]");
-    if (navEl){
-      ev.preventDefault();
-      const r = navEl.getAttribute("data-nav");
-      if (r) navigate(r);
-      return;
-    }
-    const backEl = ev.target?.closest?.("[data-back]");
-    if (backEl){
-      ev.preventDefault();
-      goBack();
-      return;
-    }
-  });
-}
-
-// -----------------------
-// Bindings
-// -----------------------
-$("inp-name").addEventListener("input", onboardingValidate);
-$("inp-dob").addEventListener("input", onboardingValidate);
-$("btn-confirm").addEventListener("click", doRegister);
-
-$("btn-forward").addEventListener("click", () => navigate("menu", { replace: true }));
-
-$("btn-games").addEventListener("click", () => navigate("games"));
-$("btn-games-back").addEventListener("click", () => navigate("menu"));
-
-$("btn-homework").addEventListener("click", openHomework);
-bindModalClose(modalHomework, $("btn-homework-close"));
-
-$("btn-profile").addEventListener("click", openProfile);
-bindModalClose(modalProfile, $("btn-profile-close"));
-
-$("btn-admin").addEventListener("click", openAdmin);
-$("btn-admin-back").addEventListener("click", () => navigate("menu"));
-
-$("btn-admin-save-homework").addEventListener("click", async () => {
-  $("admin-homework-msg").textContent = "Сохранение...";
-  try {
-    await apiFast("adminSetHomework", { homework_text: $("admin-homework").value }, { force: true });
-    memCache.forEach((_, k) => { if (k.startsWith("getHomework::")) memCache.delete(k); });
-    $("admin-homework-msg").textContent = "Сохранено ✅";
-    hNotify("success");
-  } catch(e){
-    $("admin-homework-msg").textContent = "Ошибка: " + e.message;
-    hNotify("error");
-  }
-});
-
-// Быстрый поиск по ученикам
-const searchInput = $("admin-search-user");
-if (searchInput) {
-  searchInput.addEventListener("input", (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    if (!query) {
-      renderAdminUsers(allAdminUsers);
-      return;
-    }
-    const filtered = allAdminUsers.filter(u =>
-      (u.name || "").toLowerCase().includes(query) ||
-      (u.tg_id || "").toLowerCase().includes(query)
-    );
-    renderAdminUsers(filtered);
-  });
-}
-
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) pollTick();
-});
-
-// Init
-wireNavDelegation();
-wireSwipeBack();
-boot();
+  <script src="games/match.js" defer></script>
+  <script src="games/word.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
