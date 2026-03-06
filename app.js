@@ -73,6 +73,7 @@ const state = {
 let pollTimer = null;
 let navStack = [];
 let isTransitioning = false;
+let allAdminUsers = []; // Кэш для поиска по пользователям
 
 // -----------------------
 // Telegram Haptics helpers
@@ -154,7 +155,6 @@ function formatDobRu(dob){
   if (!dob) return "";
   const s = String(dob);
 
-  // 1) Если пришло ISO (есть T) — парсим и берём ЛОКАЛЬНУЮ дату (не UTC)
   if (s.includes("T")) {
     const d = new Date(s);
     if (!Number.isNaN(d.getTime())) {
@@ -169,11 +169,9 @@ function formatDobRu(dob){
     return ymd;
   }
 
-  // 2) Если пришло просто YYYY-MM-DD — конвертим напрямую
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (m) return `${m[3]}.${m[2]}.${m[1]}`;
 
-  // 3) Если уже DD.MM.YYYY — оставляем
   const m2 = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s);
   if (m2) return s;
 
@@ -242,9 +240,6 @@ function getCachedProfile(){
   }
 }
 
-// -----------------------
-// ✅ FIX: local-profile checker (prevents bouncing back to onboarding)
-// -----------------------
 function hasLocalProfile(){
   const n = localGet("name").trim();
   const d = localGet("dob").trim();
@@ -676,16 +671,14 @@ async function openAdmin(){
 
 async function refreshAdminUsersFast(){
   const wrap = $("admin-users");
-  wrap.innerHTML = `
-    <div class="admin-user"><div class="small">Загрузка пользователей…</div></div>
-    <div class="admin-user"><div class="small">Почти готово…</div></div>
-  `;
+  wrap.innerHTML = `<div class="admin-user"><div class="small center">Загрузка пользователей…</div></div>`;
 
   try {
     const r = await apiFast("adminListUsers", {}, { ttl: CACHE_TTL.adminListUsers });
-    renderAdminUsers(r.users);
+    allAdminUsers = r.users || [];
+    renderAdminUsers(allAdminUsers);
   } catch (e) {
-    wrap.innerHTML = "Ошибка загрузки пользователей: " + escapeHtml(e.message);
+    wrap.innerHTML = '<div class="error">Ошибка: ' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -693,34 +686,39 @@ function renderAdminUsers(users){
   const wrap = $("admin-users");
   wrap.innerHTML = "";
 
+  if (!users || users.length === 0) {
+    wrap.innerHTML = '<div class="muted center" style="padding: 12px;">Никого не найдено</div>';
+    return;
+  }
+
   users.forEach(u => {
     const el = document.createElement("div");
     el.className = "admin-user";
     el.innerHTML = `
-      <div class="top">
+      <div class="admin-user-header">
         <div>
-          <div><b>${escapeHtml(u.name || "(без имени)")}</b></div>
-          <div class="small">${escapeHtml(formatDobRu(u.dob))}</div>
-          <div class="id">tg_id: ${escapeHtml(u.tg_id)}</div>
+          <span class="admin-user-name">${escapeHtml(u.name || "Без имени")}</span>
+          <span class="admin-user-dob">${escapeHtml(formatDobRu(u.dob))}</span>
         </div>
-        <button class="btn" data-act="save" type="button">Сохранить</button>
+        <div class="admin-user-id">id: ${escapeHtml(u.tg_id)}</div>
       </div>
 
-      <div class="grid">
-        <div>
-          <div class="small">За домашнее задание</div>
+      <div class="admin-user-scores">
+        <div class="score-item" title="Домашнее задание">
+          <span>📚</span>
           <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
         </div>
-        <div>
-          <div class="small">За активное участие</div>
+        <div class="score-item" title="Активное участие">
+          <span>🔥</span>
           <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
         </div>
-        <div>
-          <div class="small">За поведение</div>
+        <div class="score-item" title="Поведение">
+          <span>😇</span>
           <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
         </div>
+        <button class="btn primary btn-save-user" data-act="save" type="button">✓</button>
       </div>
-      <div class="small" data-msg></div>
+      <div class="small center" style="margin-top: 6px;" data-msg></div>
     `;
 
     el.querySelector('[data-act="save"]').addEventListener("click", async () => {
@@ -728,15 +726,20 @@ function renderAdminUsers(users){
       const truth = Number(el.querySelector('[data-k="truth"]').value || 0);
       const behavior = Number(el.querySelector('[data-k="behavior"]').value || 0);
       const msg = el.querySelector("[data-msg]");
-      msg.textContent = "Сохранение...";
+      msg.textContent = "⏳ Сохранение...";
 
       try {
         await apiFast("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior }, { force: true });
         memCache.forEach((_, k) => { if (k.startsWith("adminListUsers::")) memCache.delete(k); });
-        msg.textContent = "Готово ✅";
+        
+        msg.textContent = "✅ Сохранено";
+        msg.style.color = "var(--primary-dark)";
         hNotify("success");
+        
+        setTimeout(() => { if(msg) msg.textContent = ""; }, 2000);
       } catch(e){
-        msg.textContent = "Ошибка: " + e.message;
+        msg.textContent = "❌ Ошибка: " + e.message;
+        msg.style.color = "var(--danger)";
         hNotify("error");
       }
     });
@@ -796,6 +799,23 @@ $("btn-admin-save-homework").addEventListener("click", async () => {
     hNotify("error");
   }
 });
+
+// Быстрый поиск по ученикам
+const searchInput = $("admin-search-user");
+if (searchInput) {
+  searchInput.addEventListener("input", (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (!query) {
+      renderAdminUsers(allAdminUsers);
+      return;
+    }
+    const filtered = allAdminUsers.filter(u =>
+      (u.name || "").toLowerCase().includes(query) ||
+      (u.tg_id || "").toLowerCase().includes(query)
+    );
+    renderAdminUsers(filtered);
+  });
+}
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) pollTick();
