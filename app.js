@@ -1,7 +1,7 @@
 // app.js
 // SPA + Telegram WebApp + local account slots + admin search fixes
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbw-JKhq7kYoJSkPUdd5GLrWCogesvJwyn0C8U9aDnLc_H1TDyfpphYwmM848J6MhcYg/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwbhxL3Z3tuSr5CixF6jrHZV1mcd8K4ZWQlJ60lW7wHwmMm_dqt_Pnz2uqXmQEDFUs/exec";
 const POLL_MS = 10_000;
 
 const CACHE_TTL = {
@@ -681,6 +681,29 @@ function seedStateFromActiveAccount(){
   }
 }
 
+function setAccountItemLoading(itemEl, isLoading){
+  if (!itemEl) return;
+
+  const tagEl = itemEl.querySelector(".account-tag");
+
+  if (isLoading) {
+    itemEl.disabled = true;
+    itemEl.classList.add("is-loading");
+    if (tagEl) {
+      if (!itemEl.dataset.prevLabel) itemEl.dataset.prevLabel = tagEl.textContent || "";
+      tagEl.textContent = "Загрузка…";
+    }
+    return;
+  }
+
+  itemEl.disabled = false;
+  itemEl.classList.remove("is-loading");
+  if (tagEl && itemEl.dataset.prevLabel) {
+    tagEl.textContent = itemEl.dataset.prevLabel;
+    delete itemEl.dataset.prevLabel;
+  }
+}
+
 function renderAccounts(){
   const wrap = $("accounts-list");
   if (!wrap) return;
@@ -707,7 +730,7 @@ function renderAccounts(){
         <div class="account-tag">${acc.id === state.accountId ? "Активный" : "Открыть"}</div>
       `;
       item.addEventListener("click", async () => {
-        await activateAccount(acc.id);
+        await activateAccount(acc.id, item);
       });
       wrap.appendChild(item);
     });
@@ -716,10 +739,14 @@ function renderAccounts(){
   $("btn-accounts-back").textContent = hasLocalProfile() ? "← Вернуться" : "← К регистрации";
 }
 
-async function activateAccount(accountId){
+async function activateAccount(accountId, triggerEl = null){
   const accounts = getStoredAccounts();
   const acc = accounts.find((x) => x.id === accountId);
   if (!acc) return;
+
+  const allItems = Array.from(document.querySelectorAll("#accounts-list .account-item"));
+  allItems.forEach((btn) => { btn.disabled = true; });
+  setAccountItemLoading(triggerEl, true);
 
   state.accountId = accountId;
   setActiveAccountId(accountId);
@@ -742,7 +769,9 @@ async function activateAccount(accountId){
     const r = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
     setCachedProfile(r);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  } catch {}
+  } catch (e) {
+    console.warn("Не удалось сразу обновить профиль с сервера:", e?.message || e);
+  }
 
   navigate("menu", { replace: true });
 }
@@ -985,7 +1014,11 @@ function renderAdminUsers(users){
       msg.textContent = "⏳ Сохранение...";
 
       try {
-        await apiFast("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior }, { force: true });
+        await apiFast(
+          "adminUpdateStars",
+          { tg_id: u.tg_id, account_id: u.account_id, bible, truth, behavior },
+          { force: true }
+        );
         clearMemCache("adminListUsers::");
         msg.textContent = "✅ Сохранено";
         msg.style.color = "var(--primary-dark)";
