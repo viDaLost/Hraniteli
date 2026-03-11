@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=3" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -21,9 +21,28 @@
         <p class="muted">Проверяем ваши данные</p>
       </section>
 
+      <section id="screen-accounts" class="screen hidden" data-route="accounts">
+        <img class="mascot-img" src="assets/mascot_profile.png" alt="">
+        <div class="screen-header">
+          <span class="eyebrow">ПРОФИЛИ НА УСТРОЙСТВЕ</span>
+          <h1>Выбери профиль</h1>
+          <p class="muted">Теперь на одном устройстве можно хранить несколько профилей и быстро переключаться между ними.</p>
+        </div>
+
+        <div class="card card-soft">
+          <div id="accounts-list" class="accounts-list"></div>
+          <button id="btn-account-create" class="btn primary" type="button">+ Добавить новый профиль</button>
+        </div>
+
+        <div class="bottom-action">
+          <button id="btn-accounts-back" class="btn secondary" type="button">← Вернуться</button>
+        </div>
+      </section>
+
       <section id="screen-onboarding" class="screen hidden" data-route="onboarding">
         <img class="mascot-img" src="assets/mascot_onboarding.png" alt="">
         <div class="screen-header">
+          <span class="eyebrow">ПЕРВЫЙ ШАГ</span>
           <h1>Привет! Я Хранитель света</h1>
           <p class="muted">
             Я твой проводник и помощник в изучении священного писания.
@@ -31,7 +50,7 @@
           </p>
         </div>
 
-        <div class="card">
+        <div class="card card-soft">
           <div class="input-group">
             <label>Имя</label>
             <input id="inp-name" type="text" placeholder="Например: Миша" autocomplete="name" />
@@ -41,6 +60,7 @@
             <input id="inp-dob" type="date" />
           </div>
           <button id="btn-confirm" class="btn primary" disabled type="button">Подтвердить</button>
+          <button id="btn-onboarding-switch" class="btn secondary hidden" type="button">Выбрать другой профиль</button>
           <div id="onboarding-error" class="error"></div>
         </div>
       </section>
@@ -48,6 +68,7 @@
       <section id="screen-hello" class="screen hidden" data-route="hello">
         <div class="screen-content center">
           <img class="mascot-img" src="assets/mascot_hello.png" alt="">
+          <span class="eyebrow">ГОТОВО</span>
           <h1 id="hello-title">Отлично, рад познакомиться!</h1>
           <p class="muted">А теперь давай окунёмся в мир знаний.</p>
         </div>
@@ -57,27 +78,59 @@
       </section>
 
       <section id="screen-menu" class="screen hidden" data-route="menu">
-        <div class="screen-header">
-          <img class="mascot-img" src="assets/mascot_menu.png" alt="">
-          <h1>Главное меню</h1>
+        <div class="hero-panel">
+          <div>
+            <span class="eyebrow">ХРАНИТЕЛЬ СВЕТА</span>
+            <h1>Главное меню</h1>
+            <p class="muted">Продолжай обучение, играй и возвращайся к заданиям в удобном ритме.</p>
+          </div>
+          <img class="hero-mascot" src="assets/mascot_menu.png" alt="">
         </div>
 
-        <div class="menu-grid">
-          <div class="tile" id="btn-games" role="button" tabindex="0">
+        <div class="card account-banner">
+          <div>
+            <div class="account-banner-label">Активный профиль</div>
+            <div id="menu-active-name" class="account-banner-name">—</div>
+            <div id="menu-active-meta" class="muted">—</div>
+          </div>
+          <button id="btn-switch-account" class="btn secondary btn-inline" type="button">Сменить</button>
+        </div>
+
+        <div class="stats-row">
+          <div class="mini-stat">
+            <div class="mini-stat-value" id="menu-stat-bible">0</div>
+            <div class="mini-stat-label">Дом. задание</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-value" id="menu-stat-truth">0</div>
+            <div class="mini-stat-label">Активность</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-value" id="menu-stat-behavior">0</div>
+            <div class="mini-stat-label">Поведение</div>
+          </div>
+        </div>
+
+        <div class="menu-grid menu-grid-main">
+          <div class="tile tile-feature" id="btn-games" role="button" tabindex="0">
             <span class="tile-icon">🎮</span>
-            Библейские игры
+            <span class="tile-title">Библейские игры</span>
+            <span class="tile-sub">Играй, тренируй память и знания</span>
           </div>
-          <div class="tile" id="btn-homework" role="button" tabindex="0">
+          <div class="tile tile-feature" id="btn-homework" role="button" tabindex="0">
             <span class="tile-icon">📚</span>
-            Домашнее задание
+            <span class="tile-title">Домашнее задание</span>
+            <span class="tile-sub">Посмотри текущее задание в один тап</span>
           </div>
-          <div class="tile" id="btn-profile" role="button" tabindex="0">
+          <div class="tile tile-feature" id="btn-profile" role="button" tabindex="0">
             <span class="tile-icon">👤</span>
-            Мой профиль
+            <span class="tile-title">Мой профиль</span>
+            <span class="tile-sub">Звёзды, дата рождения и данные профиля</span>
           </div>
-          <div class="tile admin hidden" id="btn-admin" role="button" tabindex="0">
+          <div class="tile admin hidden tile-feature" id="btn-admin" role="button" tabindex="0">
             <span class="tile-icon">⚙️</span>
-            Админ
+            <span class="tile-title">Админ</span>
+            <span class="tile-sub">Поиск, задание и управление пользователями</span>
           </div>
         </div>
       </section>
@@ -85,17 +138,20 @@
       <section id="screen-games" class="screen hidden" data-route="games">
         <div class="screen-header">
           <img class="mascot-img" src="assets/mascot_games.png" alt="">
+          <span class="eyebrow">ИГРОВАЯ КОМНАТА</span>
           <h1>Библейские игры</h1>
         </div>
 
         <div class="menu-grid">
           <div class="tile" data-nav="match" role="button" tabindex="0">
             <span class="tile-icon">🃏</span>
-            Найди пару
+            <span class="tile-title">Найди пару</span>
+            <span class="tile-sub">Переворачивай карточки и ищи совпадения</span>
           </div>
           <div class="tile" data-nav="word" role="button" tabindex="0">
             <span class="tile-icon">🔤</span>
-            Найди слово
+            <span class="tile-title">Найди слово</span>
+            <span class="tile-sub">Подбери правильное слово к стиху</span>
           </div>
         </div>
 
@@ -107,11 +163,12 @@
       <section id="screen-match" class="screen hidden" data-route="match">
         <div class="screen-header">
           <img class="mascot-img" src="assets/mascot_match.png" alt="">
+          <span class="eyebrow">ИГРА НА ПАМЯТЬ</span>
           <h1>Найди пару</h1>
           <p class="muted">Переворачивай карточки и ищи совпадения</p>
         </div>
 
-        <div id="match-pick" class="card">
+        <div id="match-pick" class="card card-soft">
           <h2>Размер поля</h2>
           <div class="menu-grid">
             <div class="tile" data-match-size="4" role="button" tabindex="0">4 × 4</div>
@@ -145,11 +202,12 @@
       <section id="screen-word" class="screen hidden" data-route="word">
         <div class="screen-header">
           <img class="mascot-img" src="assets/mascot_word.png" alt="">
+          <span class="eyebrow">ИГРА СО СЛОВАМИ</span>
           <h1>Найди слово</h1>
           <p class="muted">Выбери слово, которое подходит в пропуск.</p>
         </div>
 
-        <div class="card verse-card">
+        <div class="card verse-card card-soft">
           <div id="word-verse" class="verse"></div>
           <div id="word-ref" class="muted word-ref"></div>
         </div>
@@ -164,23 +222,32 @@
 
       <section id="screen-admin" class="screen hidden" data-route="admin">
         <div class="screen-header">
+          <span class="eyebrow">УПРАВЛЕНИЕ</span>
           <h1>Админ-панель</h1>
+          <p class="muted">Быстрый поиск пользователей и редактирование звёзд.</p>
         </div>
 
-        <div class="card">
+        <div class="card card-soft">
           <h2>Домашнее задание</h2>
           <textarea id="admin-homework" rows="4" placeholder="Введите текст для всех учеников..."></textarea>
           <button id="btn-admin-save-homework" class="btn primary" type="button" style="margin-top: 12px;">Сохранить задание</button>
           <div id="admin-homework-msg" class="muted center" style="margin-top: 8px;"></div>
         </div>
 
-        <div class="card">
-          <h2>Пользователи</h2>
-          <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-            <input type="text" id="admin-search-user" placeholder="Имя или ID..." style="margin-bottom: 0; flex: 1;" />
-            <button id="btn-admin-search" class="btn primary" type="button" style="width: auto; padding: 0 16px;">Искать</button>
+        <div class="card card-soft">
+          <div class="admin-topline">
+            <div>
+              <h2 style="margin-bottom: 4px;">Пользователи</h2>
+              <div id="admin-users-count" class="muted">0 пользователей</div>
+            </div>
+            <span id="admin-search-status" class="pill">Все</span>
           </div>
-          
+
+          <div class="search-row">
+            <input type="text" id="admin-search-user" placeholder="Имя, ID или дата рождения..." />
+            <button id="btn-admin-search" class="btn primary btn-inline" type="button">Искать</button>
+          </div>
+
           <div id="admin-users" class="admin-users"></div>
         </div>
 
@@ -211,6 +278,7 @@
         <img class="mascot-img small-mascot" src="assets/mascot_profile.png" alt="">
         <h2 id="profile-name" class="center big"></h2>
         <div id="profile-dob" class="center muted"></div>
+        <div id="profile-account-badge" class="center profile-badge">—</div>
 
         <div class="stars-container">
           <div class="star-row">
@@ -227,7 +295,10 @@
           </div>
         </div>
 
-        <button class="btn secondary" id="btn-profile-close" type="button">Закрыть</button>
+        <div class="modal-actions-stack">
+          <button class="btn secondary" id="btn-profile-switch-account" type="button">Сменить профиль</button>
+          <button class="btn secondary" id="btn-profile-close" type="button">Закрыть</button>
+        </div>
       </div>
     </div>
 
@@ -235,6 +306,6 @@
 
   <script src="games/match.js?v=2" defer></script>
   <script src="games/word.js?v=2" defer></script>
-  <script src="app.js?v=2" defer></script>
+  <script src="app.js?v=3" defer></script>
 </body>
 </html>

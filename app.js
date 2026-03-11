@@ -1,11 +1,9 @@
-// app.js (FAST UI + cache + dedupe)
-// Always start with LOADING -> check server -> route
-// SPA + animations + Telegram haptics
+// app.js
+// SPA + Telegram WebApp + local account slots + admin search fixes
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyXbnpE6gEiaLbLM23GpzSbyXhWwZShVEVYTJxJ2agSEB2-ytDBBdji5T9WA8zcJ5R4/exec";
 const POLL_MS = 10_000;
 
-// Client cache TTL (UI should respond instantly)
 const CACHE_TTL = {
   getProfile: 60_000,
   adminListUsers: 20_000,
@@ -15,7 +13,6 @@ const CACHE_TTL = {
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
 
-// ===== Telegram iOS: убираем системные callout/selection без preventDefault() на touch =====
 (() => {
   const ua = navigator.userAgent || "";
   const isIOS = /iPad|iPhone|iPod/i.test(ua);
@@ -24,7 +21,6 @@ if (tg) tg.expand();
 
   const CLICKABLE = ".btn, .tile, .option, .card-tile, button";
 
-  // контекстное меню при удержании
   document.addEventListener(
     "contextmenu",
     (e) => {
@@ -34,7 +30,6 @@ if (tg) tg.expand();
     { passive: false }
   );
 
-  // выделение текста при удержании
   document.addEventListener(
     "selectstart",
     (e) => {
@@ -50,6 +45,7 @@ const viewport = $("viewport");
 
 const screens = {
   loading: $("screen-loading"),
+  accounts: $("screen-accounts"),
   onboarding: $("screen-onboarding"),
   hello: $("screen-hello"),
   menu: $("screen-menu"),
@@ -62,27 +58,28 @@ const screens = {
 const modalHomework = $("modal-homework");
 const modalProfile = $("modal-profile");
 
+const ACCOUNT_SCOPED_KEYS = new Set(["name", "dob", "profile_cache"]);
+
 const state = {
   tgId: null,
   initData: "",
+  accountId: null,
   isAdmin: false,
   profile: null,
-  isRegistering: false, // ✅ блокируем повторные регистрации + контролим UI кнопки
+  isRegistering: false,
+  onboardingMode: "create", // create | edit
 };
 
 let pollTimer = null;
 let navStack = [];
 let isTransitioning = false;
-let allAdminUsers = []; // Кэш для поиска по пользователям
+let allAdminUsers = [];
+let filteredAdminUsers = [];
 
-// -----------------------
-// Telegram Haptics helpers
-// -----------------------
 function hImpact(style = "light") { try { tg?.HapticFeedback?.impactOccurred?.(style); } catch {} }
 function hNotify(type = "success") { try { tg?.HapticFeedback?.notificationOccurred?.(type); } catch {} }
 function hSelect() { try { tg?.HapticFeedback?.selectionChanged?.(); } catch {} }
 
-// -----------------------
 function showModal(el){ el.classList.remove("hidden"); }
 function hideModal(el){ el.classList.add("hidden"); }
 function isVisible(el){ return el && !el.classList.contains("hidden"); }
@@ -102,8 +99,15 @@ function bindModalClose(modalEl, closeBtnEl){
   modalEl.addEventListener("touchend", (ev) => { if (ev.target === modalEl) hideModal(modalEl); }, { passive: true });
 }
 
-function localGet(key){ return localStorage.getItem(key) || ""; }
-function localSet(key,val){ localStorage.setItem(key, String(val)); }
+function getScopedStorageKey(key){
+  if (!ACCOUNT_SCOPED_KEYS.has(key)) return key;
+  if (state.tgId && state.accountId) return `hs:${state.tgId}:${state.accountId}:${key}`;
+  return key;
+}
+
+function localGet(key){ return localStorage.getItem(getScopedStorageKey(key)) || ""; }
+function localSet(key, val){ localStorage.setItem(getScopedStorageKey(key), String(val)); }
+function localRemove(key){ localStorage.removeItem(getScopedStorageKey(key)); }
 
 function getTelegramIdentity(){
   if (!tg) return null;
@@ -119,7 +123,13 @@ async function api(action, payload = {}) {
   try {
     const res = await fetch(GAS_URL, {
       method: "POST",
-      body: JSON.stringify({ action, initData: state.initData, ...payload }),
+      body: JSON.stringify({
+        action,
+        initData: state.initData,
+        account_id: state.accountId || "",
+        local_account_name: state.profile?.name || "",
+        ...payload,
+      }),
       cache: "no-store",
       signal: controller.signal,
       redirect: "follow",
@@ -148,9 +158,6 @@ function escapeHtml(s){
   }[c]));
 }
 
-// -----------------------
-// ✅ FIX: DOB formatting (no timezone shift) + RU format DD.MM.YYYY
-// -----------------------
 function formatDobRu(dob){
   if (!dob) return "";
   const s = String(dob);
@@ -178,14 +185,11 @@ function formatDobRu(dob){
   return s;
 }
 
-// -----------------------
-// ✅ Dedupe + TTL cache for API calls
-// -----------------------
-const inFlight = new Map(); // key -> Promise
-const memCache = new Map(); // key -> {ts, data}
+const inFlight = new Map();
+const memCache = new Map();
 
 function cacheKey(action, payload){
-  return action + "::" + JSON.stringify(payload || {});
+  return action + "::" + JSON.stringify(payload || {}) + "::" + (state.accountId || "");
 }
 
 async function apiFast(action, payload = {}, { ttl = 0, force = false } = {}) {
@@ -209,46 +213,147 @@ async function apiFast(action, payload = {}, { ttl = 0, force = false } = {}) {
   return p;
 }
 
-function setCachedProfile(p){
-  state.isAdmin = !!p.isAdmin;
-  state.profile = p.profile || state.profile;
+function clearMemCache(prefix){
+  memCache.forEach((_, k) => { if (!prefix || k.startsWith(prefix)) memCache.delete(k); });
+}
 
-  if (state.profile?.name) localSet("name", state.profile.name);
-  if (state.profile?.dob) localSet("dob", state.profile.dob);
+function accountsKey(){ return state.tgId ? `hs:${state.tgId}:accounts` : "hs:accounts"; }
+function activeAccountKey(){ return state.tgId ? `hs:${state.tgId}:active-account` : "hs:active-account"; }
 
-  if (state.profile) {
-    localSet("profile_cache", JSON.stringify({
-      ts: Date.now(),
-      isAdmin: state.isAdmin,
-      profile: state.profile
-    }));
+function getStoredAccounts(){
+  try {
+    const raw = localStorage.getItem(accountsKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
   }
+}
+
+function saveStoredAccounts(accounts){
+  localStorage.setItem(accountsKey(), JSON.stringify(accounts));
+}
+
+function getActiveAccountId(){
+  return localStorage.getItem(activeAccountKey()) || "";
+}
+
+function setActiveAccountId(accountId){
+  if (!accountId) {
+    localStorage.removeItem(activeAccountKey());
+    return;
+  }
+  localStorage.setItem(activeAccountKey(), accountId);
+}
+
+function normalizeAccountRecord(acc){
+  return {
+    id: String(acc?.id || ""),
+    name: String(acc?.name || "").trim(),
+    dob: String(acc?.dob || "").trim(),
+    bible: Number(acc?.bible || 0),
+    truth: Number(acc?.truth || 0),
+    behavior: Number(acc?.behavior || 0),
+    lastUsedAt: Number(acc?.lastUsedAt || Date.now()),
+  };
+}
+
+function makeAccountId(){
+  return `acc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getCurrentAccountRecord(){
+  const list = getStoredAccounts();
+  return list.find((x) => x.id === state.accountId) || null;
+}
+
+function upsertStoredAccount(profile = state.profile){
+  if (!state.accountId || !profile) return;
+  const list = getStoredAccounts();
+  const entry = normalizeAccountRecord({
+    id: state.accountId,
+    name: profile.name,
+    dob: profile.dob,
+    bible: profile.bible,
+    truth: profile.truth,
+    behavior: profile.behavior,
+    lastUsedAt: Date.now(),
+  });
+
+  const idx = list.findIndex((x) => x.id === state.accountId);
+  if (idx >= 0) list[idx] = { ...list[idx], ...entry };
+  else list.unshift(entry);
+
+  list.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  saveStoredAccounts(list);
+}
+
+function ensureLegacyAccountMigrated(){
+  if (!state.tgId) return;
+  const existing = getStoredAccounts();
+  if (existing.length) return;
+
+  const legacyName = (localStorage.getItem("name") || "").trim();
+  const legacyDob = (localStorage.getItem("dob") || "").trim();
+  const legacyCache = localStorage.getItem("profile_cache");
+  if (!legacyName || !legacyDob) return;
+
+  const accountId = makeAccountId();
+  state.accountId = accountId;
+  setActiveAccountId(accountId);
+  localSet("name", legacyName);
+  localSet("dob", legacyDob);
+  if (legacyCache) localSet("profile_cache", legacyCache);
+  saveStoredAccounts([normalizeAccountRecord({ id: accountId, name: legacyName, dob: legacyDob })]);
 }
 
 function getCachedProfile(){
   if (state.profile?.name && state.profile?.dob) return { isAdmin: state.isAdmin, profile: state.profile };
 
-  try{
+  try {
     const raw = localGet("profile_cache");
     if (!raw) return null;
     const obj = JSON.parse(raw);
     if (!obj?.profile) return null;
     if (Date.now() - (obj.ts || 0) > 24*60*60*1000) return null;
     return { isAdmin: !!obj.isAdmin, profile: obj.profile };
-  }catch{
+  } catch {
     return null;
   }
 }
 
 function hasLocalProfile(){
+  const acc = getCurrentAccountRecord();
+  if (acc?.name && acc?.dob) return true;
   const n = localGet("name").trim();
   const d = localGet("dob").trim();
   return !!(n && d);
 }
 
-// -----------------------
-// SPA Router + Transitions
-// -----------------------
+function setCachedProfile(p){
+  state.isAdmin = !!p.isAdmin;
+
+  const localIdentity = getCurrentAccountRecord();
+  const serverProfile = p.profile || {};
+  state.profile = {
+    ...serverProfile,
+    name: localIdentity?.name || serverProfile.name || state.profile?.name || localGet("name") || "",
+    dob: localIdentity?.dob || serverProfile.dob || state.profile?.dob || localGet("dob") || "",
+  };
+
+  if (state.profile?.name) localSet("name", state.profile.name);
+  if (state.profile?.dob) localSet("dob", state.profile.dob);
+
+  localSet("profile_cache", JSON.stringify({
+    ts: Date.now(),
+    isAdmin: state.isAdmin,
+    profile: state.profile,
+  }));
+
+  upsertStoredAccount(state.profile);
+  refreshMenuSummary();
+}
+
 function routeFromHash(){
   const h = (location.hash || "").replace(/^#/, "");
   if (!h) return "loading";
@@ -259,7 +364,7 @@ function routeFromHash(){
 function canAccess(route){
   const hasProfile = !!(state.profile?.name && state.profile?.dob) || hasLocalProfile();
   if (hasProfile) return true;
-  return ["loading","onboarding","hello"].includes(route);
+  return ["loading","accounts","onboarding","hello"].includes(route);
 }
 
 function setActiveScreen(route, direction = "forward"){
@@ -293,8 +398,8 @@ function setActiveScreen(route, direction = "forward"){
   }
 
   next.classList.remove("hidden");
-
   next.classList.remove("is-active","is-entering","is-leaving","slide-in-from-right","slide-in-from-left","slide-out-to-left","slide-out-to-right");
+
   if (direction === "back") {
     next.classList.add("slide-in-from-left");
     if (current) current.classList.add("slide-out-to-right");
@@ -324,6 +429,7 @@ function setActiveScreen(route, direction = "forward"){
       current.classList.remove("is-leaving");
     }
     isTransitioning = false;
+    next.scrollTop = 0;
   };
 
   let settled = false;
@@ -345,7 +451,7 @@ function setActiveScreen(route, direction = "forward"){
 
 function navigate(route, { replace = false } = {}){
   if (!screens[route]) route = "menu";
-  if (!canAccess(route)) route = "onboarding";
+  if (!canAccess(route)) route = getStoredAccounts().length ? "accounts" : "onboarding";
 
   const current = navStack.length ? navStack[navStack.length - 1].route : null;
 
@@ -366,7 +472,7 @@ function navigate(route, { replace = false } = {}){
 
 function goBack(){
   if (navStack.length <= 1) {
-    navigate("menu", { replace: true });
+    navigate(hasLocalProfile() ? "menu" : (getStoredAccounts().length ? "accounts" : "onboarding"), { replace: true });
     return;
   }
   const current = navStack[navStack.length - 1]?.route;
@@ -394,9 +500,6 @@ window.addEventListener("popstate", () => {
   onRouteEnter(r);
 });
 
-// -----------------------
-// Route enter hooks
-// -----------------------
 let gamesInited = { match: false, word: false };
 
 function onRouteEnter(route){
@@ -405,13 +508,17 @@ function onRouteEnter(route){
 
   try {
     if (tg?.BackButton) {
-      if (["menu","onboarding","loading"].includes(route)) tg.BackButton.hide();
+      if (["menu","onboarding","accounts","loading"].includes(route)) tg.BackButton.hide();
       else {
         tg.BackButton.show();
         tg.BackButton.onClick(goBack);
       }
     }
   } catch {}
+
+  if (route === "accounts") renderAccounts();
+  if (route === "menu") refreshMenuSummary();
+  if (route === "onboarding") syncOnboardingModeUi();
 
   if (route === "match" && !gamesInited.match) {
     window.MatchGame?.init?.({ hImpact, hNotify, hSelect, onNav: navigate, onBack: goBack });
@@ -424,9 +531,6 @@ function onRouteEnter(route){
   }
 }
 
-// -----------------------
-// Swipe back
-// -----------------------
 function wireSwipeBack(){
   if (!viewport) return;
 
@@ -460,28 +564,56 @@ function wireSwipeBack(){
   }, { passive: true });
 }
 
-// -----------------------
-// App logic
-// -----------------------
 function onboardingValidate(){
   const name = $("inp-name").value.trim();
   const dob = $("inp-dob").value.trim();
   $("btn-confirm").disabled = !(name && dob) || state.isRegistering;
 }
 
+function syncOnboardingModeUi(){
+  const hasAccounts = getStoredAccounts().length > 0;
+  const switchBtn = $("btn-onboarding-switch");
+  if (switchBtn) switchBtn.classList.toggle("hidden", !hasAccounts);
+}
+
+function refreshMenuSummary(){
+  const profile = state.profile || getCurrentAccountRecord() || {};
+  const activeAcc = getCurrentAccountRecord();
+  const totalAccounts = getStoredAccounts().length;
+
+  const name = profile.name || activeAcc?.name || "Без имени";
+  const dob = profile.dob || activeAcc?.dob || "";
+
+  if ($("menu-active-name")) $("menu-active-name").textContent = name;
+  if ($("menu-active-meta")) {
+    const suffix = totalAccounts > 1 ? ` • ${totalAccounts} профиля на устройстве` : "";
+    $("menu-active-meta").textContent = `${dob ? formatDobRu(dob) : "Дата рождения не указана"}${suffix}`;
+  }
+
+  if ($("menu-stat-bible")) $("menu-stat-bible").textContent = Number(profile.bible || 0);
+  if ($("menu-stat-truth")) $("menu-stat-truth").textContent = Number(profile.truth || 0);
+  if ($("menu-stat-behavior")) $("menu-stat-behavior").textContent = Number(profile.behavior || 0);
+}
+
 function applyProfileToUI(profile){
   if (!profile) return;
+  refreshMenuSummary();
+
   if (isVisible(modalProfile)){
-    $("profile-name").textContent = profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = profile.dob ? formatDobRu(profile.dob) : (localGet("dob") || "");
+    const accountCount = getStoredAccounts().length;
+    $("profile-name").textContent = profile.name || "Пользователь";
+    $("profile-dob").textContent = profile.dob ? formatDobRu(profile.dob) : "";
     $("star-bible").textContent = profile.bible ?? 0;
     $("star-truth").textContent = profile.truth ?? 0;
     $("star-behavior").textContent = profile.behavior ?? 0;
+    $("profile-account-badge").textContent = accountCount > 1
+      ? `Активный профиль • ${accountCount} на устройстве`
+      : "Локальный профиль на этом устройстве";
   }
 }
 
 function applyHomeworkToUI(homeworkText){
-  if (isVisible(modalHomework)){
+  if (isVisible(modalHomework)) {
     $("homework-text").textContent = homeworkText || "Пока нет задания 🙂";
   }
   if (screens.admin && screens.admin.classList.contains("is-active")){
@@ -500,20 +632,121 @@ async function pollTick(){
   if (document.hidden) return;
   if (!state.initData) return;
 
-  try{
+  try {
     const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
     setCachedProfile(p);
     applyProfileToUI(state.profile);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  }catch{}
+  } catch {}
 
   const needHomework = isVisible(modalHomework) || (screens.admin && screens.admin.classList.contains("is-active"));
   if (needHomework){
-    try{
+    try {
       const hw = await apiFast("getHomework", {}, { ttl: CACHE_TTL.getHomework });
       applyHomeworkToUI(hw.homework_text || "");
-    }catch{}
+    } catch {}
   }
+}
+
+function seedStateFromActiveAccount(){
+  const activeId = getActiveAccountId();
+  const accounts = getStoredAccounts();
+  const fallbackId = activeId || accounts[0]?.id || null;
+  if (!fallbackId) {
+    state.accountId = null;
+    state.profile = null;
+    return;
+  }
+
+  state.accountId = fallbackId;
+  setActiveAccountId(fallbackId);
+  const acc = accounts.find((x) => x.id === fallbackId) || null;
+  if (acc) {
+    state.profile = {
+      name: acc.name,
+      dob: acc.dob,
+      bible: acc.bible || 0,
+      truth: acc.truth || 0,
+      behavior: acc.behavior || 0,
+    };
+  }
+}
+
+function renderAccounts(){
+  const wrap = $("accounts-list");
+  if (!wrap) return;
+
+  const accounts = getStoredAccounts();
+  wrap.innerHTML = "";
+
+  if (!accounts.length) {
+    wrap.innerHTML = `<div class="account-empty">На этом устройстве пока нет сохранённых профилей.</div>`;
+  } else {
+    accounts.forEach((acc) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `account-item ${acc.id === state.accountId ? "active" : ""}`;
+      const initial = (acc.name || "?").trim().charAt(0).toUpperCase() || "?";
+      item.innerHTML = `
+        <div class="account-item-main">
+          <div class="account-avatar">${escapeHtml(initial)}</div>
+          <div>
+            <div class="account-name">${escapeHtml(acc.name || "Без имени")}</div>
+            <div class="account-meta">${escapeHtml(formatDobRu(acc.dob) || "Дата не указана")}</div>
+          </div>
+        </div>
+        <div class="account-tag">${acc.id === state.accountId ? "Активный" : "Открыть"}</div>
+      `;
+      item.addEventListener("click", async () => {
+        await activateAccount(acc.id);
+      });
+      wrap.appendChild(item);
+    });
+  }
+
+  $("btn-accounts-back").textContent = hasLocalProfile() ? "← Вернуться" : "← К регистрации";
+}
+
+async function activateAccount(accountId){
+  const accounts = getStoredAccounts();
+  const acc = accounts.find((x) => x.id === accountId);
+  if (!acc) return;
+
+  state.accountId = accountId;
+  setActiveAccountId(accountId);
+  state.onboardingMode = "edit";
+  state.profile = {
+    name: acc.name,
+    dob: acc.dob,
+    bible: acc.bible || 0,
+    truth: acc.truth || 0,
+    behavior: acc.behavior || 0,
+  };
+
+  localSet("name", acc.name || "");
+  localSet("dob", acc.dob || "");
+  clearMemCache();
+  refreshMenuSummary();
+  applyProfileToUI(state.profile);
+
+  try {
+    const r = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
+    setCachedProfile(r);
+    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
+  } catch {}
+
+  navigate("menu", { replace: true });
+}
+
+function beginCreateAccount(){
+  state.onboardingMode = "create";
+  state.accountId = null;
+  state.profile = null;
+  $("inp-name").value = "";
+  $("inp-dob").value = "";
+  $("onboarding-error").textContent = "";
+  onboardingValidate();
+  navigate("onboarding");
 }
 
 async function boot(){
@@ -531,10 +764,12 @@ async function boot(){
 
   if (!state.tgId || !state.initData) {
     navigate("onboarding", { replace: true });
-    $("onboarding-error").textContent =
-      "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
+    $("onboarding-error").textContent = "Открой это приложение внутри Telegram (WebApp), чтобы всё работало.";
     return;
   }
+
+  ensureLegacyAccountMigrated();
+  seedStateFromActiveAccount();
 
   const cached = getCachedProfile();
   if (cached?.profile) {
@@ -546,26 +781,31 @@ async function boot(){
   startPolling();
 
   try {
-    const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
-    setCachedProfile(p);
-    if (state.isAdmin) $("btn-admin").classList.remove("hidden");
+    if (state.accountId) {
+      const p = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile, force: true });
+      setCachedProfile(p);
+      if (state.isAdmin) $("btn-admin").classList.remove("hidden");
+    }
 
     if ((state.profile?.name && state.profile?.dob) || hasLocalProfile()) {
       navigate("menu", { replace: true });
       return;
     }
-    navigate("onboarding", { replace: true });
 
+    if (getStoredAccounts().length) {
+      navigate("accounts", { replace: true });
+      return;
+    }
+
+    navigate("onboarding", { replace: true });
   } catch (e) {
     if (hasLocalProfile()) {
-      state.profile = state.profile || {
-        name: localGet("name"),
-        dob: localGet("dob"),
-        bible: 0,
-        truth: 0,
-        behavior: 0,
-      };
       navigate("menu", { replace: true });
+      return;
+    }
+
+    if (getStoredAccounts().length) {
+      navigate("accounts", { replace: true });
       return;
     }
 
@@ -589,32 +829,36 @@ async function doRegister(){
   btn.disabled = true;
   btn.textContent = "Загрузка…";
 
+  if (!state.accountId || state.onboardingMode === "create") {
+    state.accountId = makeAccountId();
+    setActiveAccountId(state.accountId);
+  }
+
+  state.profile = { name, dob, bible: 0, truth: 0, behavior: 0 };
   localSet("name", name);
   localSet("dob", dob);
-  state.profile = { name, dob, bible: 0, truth: 0, behavior: 0 };
-
   localSet("profile_cache", JSON.stringify({
     ts: Date.now(),
     isAdmin: false,
-    profile: state.profile
+    profile: state.profile,
   }));
+  upsertStoredAccount(state.profile);
 
   try {
-    const r = await apiFast("register", { name, dob }, { force: true });
+    const r = await apiFast("register", { name, dob, account_id: state.accountId }, { force: true });
     setCachedProfile(r);
-
-    $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-    hNotify("success");
-
-    navigate("hello", { replace: true });
   } catch (e) {
-    $("onboarding-error").textContent = e.message;
-    hNotify("error");
+    $("onboarding-error").textContent = `Профиль сохранён на устройстве, но сервер не подтвердил регистрацию: ${e.message}`;
   } finally {
+    $("hello-title").textContent = `Отлично, рад познакомиться, ${name}!`;
     btn.textContent = prevText;
     state.isRegistering = false;
+    state.onboardingMode = "edit";
     onboardingValidate();
+    refreshMenuSummary();
+    hNotify("success");
+    navigate("hello", { replace: true });
   }
 }
 
@@ -622,19 +866,17 @@ async function openProfile(){
   showModal(modalProfile);
   hImpact("light");
 
-  const cached = getCachedProfile();
-  if (cached?.profile) {
-    $("profile-name").textContent = cached.profile.name || localGet("name") || "Пользователь";
-    $("profile-dob").textContent = cached.profile.dob ? formatDobRu(cached.profile.dob) : (localGet("dob") || "");
-    $("star-bible").textContent = cached.profile.bible ?? 0;
-    $("star-truth").textContent = cached.profile.truth ?? 0;
-    $("star-behavior").textContent = cached.profile.behavior ?? 0;
-  } else {
-    $("profile-name").textContent = localGet("name") || "Пользователь";
-    $("profile-dob").textContent = localGet("dob") || "";
-  }
+  const profile = state.profile || getCachedProfile()?.profile || getCurrentAccountRecord() || {
+    name: localGet("name") || "Пользователь",
+    dob: localGet("dob") || "",
+    bible: 0,
+    truth: 0,
+    behavior: 0,
+  };
+  applyProfileToUI(profile);
 
   try {
+    if (!state.accountId) return;
     const r = await apiFast("getProfile", {}, { ttl: CACHE_TTL.getProfile });
     setCachedProfile(r);
     applyProfileToUI(state.profile);
@@ -674,17 +916,22 @@ async function refreshAdminUsersFast(){
   wrap.innerHTML = `<div class="admin-user"><div class="small center">Загрузка пользователей…</div></div>`;
 
   try {
-    const r = await apiFast("adminListUsers", {}, { ttl: CACHE_TTL.adminListUsers });
-    allAdminUsers = r.users || [];
-    renderAdminUsers(allAdminUsers);
+    const r = await apiFast("adminListUsers", {}, { ttl: CACHE_TTL.adminListUsers, force: true });
+    allAdminUsers = Array.isArray(r.users) ? r.users : [];
+    executeAdminSearch();
   } catch (e) {
     wrap.innerHTML = '<div class="error">Ошибка: ' + escapeHtml(e.message) + '</div>';
+    $("admin-users-count").textContent = "Ошибка загрузки";
+    $("admin-search-status").textContent = "Ошибка";
   }
 }
 
 function renderAdminUsers(users){
   const wrap = $("admin-users");
   wrap.innerHTML = "";
+
+  const countText = `${users.length} ${users.length === 1 ? "пользователь" : (users.length >= 2 && users.length <= 4 ? "пользователя" : "пользователей")}`;
+  $("admin-users-count").textContent = countText;
 
   if (!users || users.length === 0) {
     wrap.innerHTML = '<div class="muted center" style="padding: 12px;">Никого не найдено</div>';
@@ -700,21 +947,21 @@ function renderAdminUsers(users){
           <span class="admin-user-name">${escapeHtml(u.name || "Без имени")}</span>
           <span class="admin-user-dob">${escapeHtml(formatDobRu(u.dob))}</span>
         </div>
-        <div class="admin-user-id">id: ${escapeHtml(u.tg_id)}</div>
+        <div class="admin-user-id">id: ${escapeHtml(String(u.tg_id ?? ""))}</div>
       </div>
 
       <div class="admin-user-scores">
         <div class="score-item" title="Домашнее задание">
           <span>📚</span>
-          <input type="number" min="0" step="1" value="${u.bible ?? 0}" data-k="bible"/>
+          <input type="number" min="0" step="1" value="${Number(u.bible ?? 0)}" data-k="bible" />
         </div>
         <div class="score-item" title="Активное участие">
           <span>🔥</span>
-          <input type="number" min="0" step="1" value="${u.truth ?? 0}" data-k="truth"/>
+          <input type="number" min="0" step="1" value="${Number(u.truth ?? 0)}" data-k="truth" />
         </div>
         <div class="score-item" title="Поведение">
           <span>😇</span>
-          <input type="number" min="0" step="1" value="${u.behavior ?? 0}" data-k="behavior"/>
+          <input type="number" min="0" step="1" value="${Number(u.behavior ?? 0)}" data-k="behavior" />
         </div>
         <button class="btn primary btn-save-user" data-act="save" type="button">✓</button>
       </div>
@@ -730,13 +977,11 @@ function renderAdminUsers(users){
 
       try {
         await apiFast("adminUpdateStars", { tg_id: u.tg_id, bible, truth, behavior }, { force: true });
-        memCache.forEach((_, k) => { if (k.startsWith("adminListUsers::")) memCache.delete(k); });
-        
+        clearMemCache("adminListUsers::");
         msg.textContent = "✅ Сохранено";
         msg.style.color = "var(--primary-dark)";
         hNotify("success");
-        
-        setTimeout(() => { if(msg) msg.textContent = ""; }, 2000);
+        setTimeout(() => { if (msg) msg.textContent = ""; }, 2000);
       } catch(e){
         msg.textContent = "❌ Ошибка: " + e.message;
         msg.style.color = "var(--danger)";
@@ -746,6 +991,41 @@ function renderAdminUsers(users){
 
     wrap.appendChild(el);
   });
+}
+
+function normalizeSearchValue(value){
+  return String(value || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function executeAdminSearch() {
+  const inputEl = $("admin-search-user");
+  if (!inputEl) return;
+
+  const query = normalizeSearchValue(inputEl.value);
+  if (!query) {
+    filteredAdminUsers = [...allAdminUsers];
+    $("admin-search-status").textContent = "Все";
+    renderAdminUsers(filteredAdminUsers);
+    return;
+  }
+
+  filteredAdminUsers = allAdminUsers.filter((u) => {
+    const haystack = [
+      u.name,
+      u.tg_id,
+      u.dob,
+      formatDobRu(u.dob),
+    ].map(normalizeSearchValue).join(" | ");
+
+    return haystack.includes(query);
+  });
+
+  $("admin-search-status").textContent = `Найдено: ${filteredAdminUsers.length}`;
+  renderAdminUsers(filteredAdminUsers);
 }
 
 function wireNavDelegation(){
@@ -766,12 +1046,10 @@ function wireNavDelegation(){
   });
 }
 
-// -----------------------
-// Bindings
-// -----------------------
 $("inp-name").addEventListener("input", onboardingValidate);
 $("inp-dob").addEventListener("input", onboardingValidate);
 $("btn-confirm").addEventListener("click", doRegister);
+$("btn-onboarding-switch").addEventListener("click", () => navigate("accounts"));
 
 $("btn-forward").addEventListener("click", () => navigate("menu", { replace: true }));
 
@@ -782,7 +1060,18 @@ $("btn-homework").addEventListener("click", openHomework);
 bindModalClose(modalHomework, $("btn-homework-close"));
 
 $("btn-profile").addEventListener("click", openProfile);
+$("btn-profile-switch-account").addEventListener("click", () => {
+  hideModal(modalProfile);
+  navigate("accounts");
+});
 bindModalClose(modalProfile, $("btn-profile-close"));
+
+$("btn-switch-account").addEventListener("click", () => navigate("accounts"));
+$("btn-account-create").addEventListener("click", beginCreateAccount);
+$("btn-accounts-back").addEventListener("click", () => {
+  if (hasLocalProfile()) navigate("menu", { replace: true });
+  else navigate("onboarding", { replace: true });
+});
 
 $("btn-admin").addEventListener("click", openAdmin);
 $("btn-admin-back").addEventListener("click", () => navigate("menu"));
@@ -791,7 +1080,7 @@ $("btn-admin-save-homework").addEventListener("click", async () => {
   $("admin-homework-msg").textContent = "Сохранение...";
   try {
     await apiFast("adminSetHomework", { homework_text: $("admin-homework").value }, { force: true });
-    memCache.forEach((_, k) => { if (k.startsWith("getHomework::")) memCache.delete(k); });
+    clearMemCache("getHomework::");
     $("admin-homework-msg").textContent = "Сохранено ✅";
     hNotify("success");
   } catch(e){
@@ -800,56 +1089,26 @@ $("btn-admin-save-homework").addEventListener("click", async () => {
   }
 });
 
-// ✅ Новая логика поиска по кнопке и Enter
-function executeAdminSearch() {
-  const inputEl = $("admin-search-user");
-  if (!inputEl) return;
-  
-  const query = inputEl.value.toLowerCase().trim();
-  if (!query) {
-    renderAdminUsers(allAdminUsers);
-    return;
-  }
-  
-  const filtered = allAdminUsers.filter(u =>
-    (u.name || "").toLowerCase().includes(query) ||
-    (u.tg_id || "").toLowerCase().includes(query)
-  );
-  
-  renderAdminUsers(filtered);
-}
-
-// Привязываем события для поиска
 const searchBtn = $("btn-admin-search");
-if (searchBtn) {
-  searchBtn.addEventListener("click", executeAdminSearch);
-}
+if (searchBtn) searchBtn.addEventListener("click", executeAdminSearch);
 
 const searchInput = $("admin-search-user");
 if (searchInput) {
-  // Выполнять поиск при нажатии Enter на клавиатуре
-  searchInput.addEventListener("keypress", (e) => {
+  searchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       executeAdminSearch();
-      // Опционально: убираем фокус с поля, чтобы скрыть клавиатуру на мобильных устройствах
       searchInput.blur();
     }
   });
 
-  // Если пользователь полностью стёр текст, автоматически возвращаем весь список
-  searchInput.addEventListener("input", (e) => {
-    if (!e.target.value.trim()) {
-      executeAdminSearch();
-    }
-  });
+  searchInput.addEventListener("input", executeAdminSearch);
 }
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) pollTick();
 });
 
-// Init
 wireNavDelegation();
 wireSwipeBack();
 boot();
