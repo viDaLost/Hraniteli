@@ -243,6 +243,35 @@ function saveStoredAccounts(accounts){
   localStorage.setItem(accountsKey(), JSON.stringify(accounts));
 }
 
+function removeStoredAccountById(accountId){
+  if (!accountId) return;
+  const next = getStoredAccounts().filter((x) => x.id !== accountId);
+  saveStoredAccounts(next);
+  if (getActiveAccountId() === accountId) {
+    const fallback = next[0]?.id || "";
+    setActiveAccountId(fallback);
+    state.accountId = fallback || null;
+  }
+}
+
+function isMissingProfileError(error){
+  const msg = String(error?.message || "").toLowerCase();
+  return ["not found", "не найден", "profile not found", "user not found", "deleted", "удален", "удалён"].some((x) => msg.includes(x));
+}
+
+function pruneCurrentAccountIfMissing(error){
+  if (!isMissingProfileError(error) || !state.accountId) return false;
+  const removedId = state.accountId;
+  removeStoredAccountById(removedId);
+  localRemove("name");
+  localRemove("dob");
+  localRemove("profile_cache");
+  state.profile = null;
+  clearMemCache();
+  console.warn("Локальный профиль удалён, так как сервер больше его не знает:", removedId);
+  return true;
+}
+
 function getActiveAccountId(){
   return localStorage.getItem(activeAccountKey()) || "";
 }
@@ -646,7 +675,11 @@ async function pollTick(){
     setCachedProfile(p);
     applyProfileToUI(state.profile);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  } catch {}
+  } catch (e) {
+    if (pruneCurrentAccountIfMissing(e)) {
+      navigate(getStoredAccounts().length ? "accounts" : "onboarding", { replace: true });
+    }
+  }
 
   const needHomework = isVisible(modalHomework) || (screens.admin && screens.admin.classList.contains("is-active"));
   if (needHomework){
@@ -770,6 +803,10 @@ async function activateAccount(accountId, triggerEl = null){
     setCachedProfile(r);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
   } catch (e) {
+    if (pruneCurrentAccountIfMissing(e)) {
+      renderAccounts();
+      return;
+    }
     console.warn("Не удалось сразу обновить профиль с сервера:", e?.message || e);
   }
 
@@ -837,6 +874,11 @@ async function boot(){
 
     navigate("onboarding", { replace: true });
   } catch (e) {
+    if (pruneCurrentAccountIfMissing(e)) {
+      navigate(getStoredAccounts().length ? "accounts" : "onboarding", { replace: true });
+      return;
+    }
+
     if (hasLocalProfile()) {
       navigate("menu", { replace: true });
       return;
@@ -919,7 +961,12 @@ async function openProfile(){
     setCachedProfile(r);
     applyProfileToUI(state.profile);
     if (state.isAdmin) $("btn-admin").classList.remove("hidden");
-  } catch {}
+  } catch (e) {
+    if (pruneCurrentAccountIfMissing(e)) {
+      hideModal(modalProfile);
+      navigate(getStoredAccounts().length ? "accounts" : "onboarding", { replace: true });
+    }
+  }
 }
 
 async function openHomework(){
@@ -964,6 +1011,29 @@ async function refreshAdminUsersFast(){
   }
 }
 
+function getAdminSortValue(){
+  return $("admin-sort-users")?.value || "name_asc";
+}
+
+function sortAdminUsers(users){
+  const arr = [...(users || [])];
+  const byName = (u) => normalizeSearchValue(u?.name || "Без имени");
+  const score = (u, key) => Number(u?.[key] || 0);
+  const mode = getAdminSortValue();
+
+  arr.sort((a, b) => {
+    switch (mode) {
+      case "name_desc": return byName(b).localeCompare(byName(a), "ru");
+      case "bible_desc": return score(b, "bible") - score(a, "bible") || byName(a).localeCompare(byName(b), "ru");
+      case "truth_desc": return score(b, "truth") - score(a, "truth") || byName(a).localeCompare(byName(b), "ru");
+      case "behavior_desc": return score(b, "behavior") - score(a, "behavior") || byName(a).localeCompare(byName(b), "ru");
+      default: return byName(a).localeCompare(byName(b), "ru");
+    }
+  });
+
+  return arr;
+}
+
 function renderAdminUsers(users){
   const wrap = $("admin-users");
   wrap.innerHTML = "";
@@ -976,16 +1046,24 @@ function renderAdminUsers(users){
     return;
   }
 
-  users.forEach(u => {
+  sortAdminUsers(users).forEach(u => {
     const el = document.createElement("div");
     el.className = "admin-user";
+    const hasAccountId = !!String(u.account_id || "").trim();
+    const isStale = !hasAccountId;
+    if (isStale) el.dataset.stale = "1";
     el.innerHTML = `
       <div class="admin-user-header">
         <div>
           <span class="admin-user-name">${escapeHtml(u.name || "Без имени")}</span>
           <span class="admin-user-dob">${escapeHtml(formatDobRu(u.dob))}</span>
         </div>
-        <div class="admin-user-id">id: ${escapeHtml(String(u.tg_id ?? ""))}</div>
+        <div class="admin-user-id">tg: ${escapeHtml(String(u.tg_id ?? ""))}<br>profile: ${escapeHtml(String(u.account_id ?? "—"))}</div>
+      </div>
+
+      <div class="admin-user-meta">
+        <span class="pill">Всего: ${Number(u.bible ?? 0) + Number(u.truth ?? 0) + Number(u.behavior ?? 0)}</span>
+        ${isStale ? '<span class="pill" style="background:#FFEBEE;color:#C62828;">Нет account_id</span>' : '<span class="pill">Профиль активен</span>'}
       </div>
 
       <div class="admin-user-scores">
@@ -1002,6 +1080,9 @@ function renderAdminUsers(users){
           <input type="number" min="0" step="1" value="${Number(u.behavior ?? 0)}" data-k="behavior" />
         </div>
         <button class="btn primary btn-save-user" data-act="save" type="button">✓</button>
+      </div>
+      <div class="admin-user-actions">
+        <button class="btn secondary" data-act="copy-id" type="button">Скопировать ID</button>
       </div>
       <div class="small center" style="margin-top: 6px;" data-msg></div>
     `;
@@ -1029,6 +1110,19 @@ function renderAdminUsers(users){
         msg.style.color = "var(--danger)";
         hNotify("error");
       }
+    });
+
+    el.querySelector('[data-act="copy-id"]')?.addEventListener("click", async () => {
+      const msg = el.querySelector("[data-msg]");
+      try {
+        await navigator.clipboard.writeText(String(u.tg_id ?? ""));
+        msg.textContent = "ID скопирован";
+        msg.style.color = "var(--primary-dark)";
+      } catch {
+        msg.textContent = "Не удалось скопировать ID";
+        msg.style.color = "var(--danger)";
+      }
+      setTimeout(() => { if (msg) msg.textContent = ""; }, 1600);
     });
 
     wrap.appendChild(el);
@@ -1059,6 +1153,7 @@ function executeAdminSearch() {
     const haystack = [
       u.name,
       u.tg_id,
+      u.account_id,
       u.dob,
       formatDobRu(u.dob),
     ].map(normalizeSearchValue).join(" | ");
@@ -1146,6 +1241,13 @@ if (searchInput) {
 
   searchInput.addEventListener("input", executeAdminSearch);
 }
+
+$("btn-admin-refresh-users")?.addEventListener("click", async () => {
+  clearMemCache("adminListUsers::");
+  await refreshAdminUsersFast();
+});
+
+$("admin-sort-users")?.addEventListener("change", executeAdminSearch);
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) pollTick();
