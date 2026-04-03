@@ -11,7 +11,6 @@
   let pieces = [];
   let dragState = null;
   let timerId = null;
-  let resizeBound = false;
 
   let screenEl, headerEl, pickerCardEl,
     boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl,
@@ -65,7 +64,6 @@
       hNotify('success');
     });
 
-
     if (trayEl && !trayEl.dataset.boundScroll) {
       trayEl.dataset.boundScroll = '1';
       trayEl.addEventListener('scroll', updateTrayHint, { passive: true });
@@ -87,9 +85,14 @@
   }
 
   async function loadList(){
-    const r = await fetch('data/puzzles.json', { cache: 'no-store' });
-    const json = await r.json();
-    data = Array.isArray(json?.items) ? json.items : [];
+    try {
+      const r = await fetch('data/puzzles.json', { cache: 'no-store' });
+      const json = await r.json();
+      data = Array.isArray(json?.items) ? json.items : [];
+    } catch(e) {
+      console.error('Ошибка загрузки списка пазлов:', e);
+      data = [];
+    }
   }
 
   function bindOnce(id, event, fn){
@@ -153,7 +156,13 @@
     pickerCardEl?.classList.remove('hidden');
     stopDrag();
     stopTimer();
-    try { window.Telegram?.WebApp?.enableVerticalSwipes?.(); } catch {}
+    
+    // Возвращаем свайпы для главного меню
+    try { 
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.enableVerticalSwipes(); 
+      }
+    } catch (e) {}
   }
 
   function startGame(item, size){
@@ -168,24 +177,31 @@
     gameEl?.classList.remove('hidden');
     finishEl?.classList.add('hidden');
     completeEl?.classList.add('hidden');
-    completeEl && (completeEl.style.backgroundImage = `url("${item.image}")`);
-    referenceEl && (referenceEl.src = item.image);
+    if(completeEl) completeEl.style.backgroundImage = `url("${item.image}")`;
+    if(referenceEl) referenceEl.src = item.image;
+    
     screenEl?.classList.add('puzzle-playing');
     headerEl?.classList.add('hidden');
     pickerCardEl?.classList.add('hidden');
 
     renderBoard();
     renderTray();
-    applyResponsiveLayout();
     updateInfo();
     startTimer();
-    requestAnimationFrame(() => { trayEl?.scrollTo({ left: 0, top: 0 }); updateTrayHint(); });
-    try { window.Telegram?.WebApp?.disableVerticalSwipes?.(); } catch {}
-    if (!resizeBound) {
-      resizeBound = true;
-      window.addEventListener('resize', applyResponsiveLayout, { passive: true });
-      window.addEventListener('orientationchange', applyResponsiveLayout, { passive: true });
-    }
+    
+    requestAnimationFrame(() => { 
+      trayEl?.scrollTo({ left: 0, top: 0 }); 
+      updateTrayHint(); 
+    });
+
+    // Настройки Telegram Web App для экрана игры
+    try { 
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.expand();
+        window.Telegram.WebApp.disableVerticalSwipes(); 
+      }
+    } catch (e) {}
+    
     hImpact('medium');
   }
 
@@ -224,7 +240,6 @@
 
   function renderTray(){
     trayEl.innerHTML = '';
-    trayEl.style.setProperty('--puzzle-size', String(gridSize));
     const frag = document.createDocumentFragment();
     pieces.filter(p => !p.placed).forEach(piece => frag.appendChild(createPieceEl(piece, false)));
     trayEl.appendChild(frag);
@@ -261,6 +276,12 @@
     ev.preventDefault();
     const rect = sourceEl.getBoundingClientRect();
     const ghost = sourceEl.cloneNode(true);
+    
+    // Копируем стили фона для призрака
+    ghost.style.backgroundImage = sourceEl.style.backgroundImage;
+    ghost.style.backgroundSize = sourceEl.style.backgroundSize;
+    ghost.style.backgroundPosition = sourceEl.style.backgroundPosition;
+    
     ghost.classList.add('dragging');
     ghost.style.position = 'fixed';
     ghost.style.left = rect.left + 'px';
@@ -271,7 +292,9 @@
     ghost.style.pointerEvents = 'none';
     document.body.appendChild(ghost);
     sourceEl.classList.add('holding');
+    
     try { sourceEl.setPointerCapture(ev.pointerId); } catch {}
+    
     screenEl?.classList.add('drag-lock');
     document.body.classList.add('drag-lock');
     document.documentElement.classList.add('drag-lock');
@@ -308,13 +331,24 @@
   }
 
   function updateHoveredSlot(clientX, clientY, pieceId){
-    const hovered = document.elementFromPoint(clientX, clientY)?.closest('.puzzle-slot');
+    const elements = document.elementsFromPoint(clientX, clientY);
+    let hovered = null;
+    for (let el of elements) {
+      if (el.classList.contains('puzzle-slot')) {
+        hovered = el;
+        break;
+      }
+    }
+    
     document.querySelectorAll('.puzzle-slot.hover-ok, .puzzle-slot.hover-bad').forEach(el => el.classList.remove('hover-ok', 'hover-bad'));
     dragState.overSlot = null;
+    
     if (!hovered) return;
+    
     const slotIndex = Number(hovered.dataset.slot);
     const piece = pieces.find(p => p.id === pieceId);
     if (!piece) return;
+    
     const occupied = pieces.some(p => p.placed && p.slot === slotIndex);
     const ok = !occupied && slotIndex === piece.id;
     hovered.classList.add(ok ? 'hover-ok' : 'hover-bad');
@@ -366,34 +400,6 @@
     document.documentElement.classList.remove('drag-lock');
   }
 
-
-  function applyResponsiveLayout(){
-    if (!screenEl || !gameEl || gameEl.classList.contains('hidden')) return;
-    const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-    const vh = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
-    const topActions = screenEl.querySelector('.top-actions');
-    const hud = screenEl.querySelector('.puzzle-hud');
-    const trayShell = screenEl.querySelector('.puzzle-tray-shell');
-
-    const topH = (topActions?.offsetHeight || 0) + (hud?.offsetHeight || 0);
-    const shellPad = vw <= 420 ? 20 : 26;
-    const gaps = vw <= 420 ? 22 : 28;
-    const reservedBottom = vw <= 420 ? 44 : 36;
-    const trayHeight = Math.max(120, Math.min(196, Math.round(vh * (gridSize >= 5 ? 0.25 : 0.22))));
-    const sidePad = vw <= 420 ? 24 : 36;
-    const boardByWidth = Math.max(196, Math.min(vw - sidePad, 520));
-    const boardByHeight = Math.max(176, vh - topH - trayHeight - gaps - shellPad - reservedBottom);
-    const boardSize = Math.round(Math.max(176, Math.min(boardByWidth, boardByHeight)));
-    const trayPiece = Math.round(Math.max(50, Math.min(gridSize >= 5 ? 68 : 78, (vw - 40) / (gridSize >= 5 ? 5.0 : 4.35))));
-
-    screenEl.style.setProperty('--puzzle-board-size', boardSize + 'px');
-    screenEl.style.setProperty('--puzzle-tray-height', trayHeight + 'px');
-    screenEl.style.setProperty('--puzzle-tray-piece', trayPiece + 'px');
-    trayShell?.style.setProperty('min-height', trayHeight + 'px');
-    trayShell?.style.removeProperty('height');
-    requestAnimationFrame(updateTrayHint);
-  }
-
   function updateTrayHint(){
     if (!trayEl || !trayHintEl) return;
     const canScrollX = trayEl.scrollWidth - trayEl.clientWidth > 16;
@@ -406,7 +412,6 @@
     trayHintEl.textContent = atStart ? 'Листай детали вбок →' : (atEnd ? '← Можно листать назад' : '← Листай в обе стороны →');
   }
 
-
   function isSolved(){
     return pieces.length > 0 && pieces.every(p => p.placed && p.slot === p.id);
   }
@@ -417,7 +422,7 @@
     completeEl?.classList.remove('hidden');
     const secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     qs('puzzle-win-title').textContent = `Готово! ${activePuzzle?.title || 'Пазл'} собран.`;
-    qs('puzzle-win-meta').textContent = `Деталей: ${gridSize * gridSize} • Перетаскиваний: ${moves} • Время: ${formatTime(secs)}`;
+    qs('puzzle-win-meta').textContent = `Деталей: ${gridSize * gridSize} • Ходы: ${moves} • Время: ${formatTime(secs)}`;
     winImageEl.src = activePuzzle.image;
     winImageEl.alt = activePuzzle.title || 'Собранный пазл';
     finishEl?.classList.remove('hidden');
@@ -428,7 +433,7 @@
     if (!infoEl) return;
     const secs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     const left = pieces.filter(p => !p.placed).length;
-    infoEl.textContent = `Сетка ${gridSize}×${gridSize} • Осталось: ${left} • Ходы: ${moves} • Время: ${formatTime(secs)}`;
+    infoEl.textContent = `Осталось: ${left} • Ходы: ${moves} • Время: ${formatTime(secs)}`;
   }
 
   function startTimer(){
