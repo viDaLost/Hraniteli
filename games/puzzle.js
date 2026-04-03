@@ -15,7 +15,7 @@
 
   let screenEl, headerEl, pickerCardEl,
     boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl,
-    winImageEl, captionEl, trayEl, referenceEl, completeEl;
+    winImageEl, captionEl, trayEl, referenceEl, completeEl, trayHintEl;
 
   const preventTouchScroll = (ev) => {
     if (dragState) ev.preventDefault();
@@ -49,6 +49,7 @@
     trayEl = qs('puzzle-tray');
     referenceEl = qs('puzzle-reference');
     completeEl = qs('puzzle-complete');
+    trayHintEl = qs('puzzle-tray-hint');
 
     bindOnce('puzzle-btn-restart', 'click', () => {
       if (!activePuzzle) return;
@@ -63,6 +64,12 @@
       finishEl?.classList.add('hidden');
       hNotify('success');
     });
+
+
+    if (trayEl && !trayEl.dataset.boundScroll) {
+      trayEl.dataset.boundScroll = '1';
+      trayEl.addEventListener('scroll', updateTrayHint, { passive: true });
+    }
 
     document.querySelectorAll('[data-puzzle-size]').forEach((btn) => {
       if (btn.dataset.bound) return;
@@ -172,7 +179,7 @@
     applyResponsiveLayout();
     updateInfo();
     startTimer();
-    requestAnimationFrame(() => trayEl?.scrollTo({ left: 0, top: 0 }));
+    requestAnimationFrame(() => { trayEl?.scrollTo({ left: 0, top: 0 }); updateTrayHint(); });
     try { window.Telegram?.WebApp?.disableVerticalSwipes?.(); } catch {}
     if (!resizeBound) {
       resizeBound = true;
@@ -221,6 +228,7 @@
     const frag = document.createDocumentFragment();
     pieces.filter(p => !p.placed).forEach(piece => frag.appendChild(createPieceEl(piece, false)));
     trayEl.appendChild(frag);
+    requestAnimationFrame(updateTrayHint);
   }
 
   function createPieceEl(piece, locked){
@@ -368,20 +376,36 @@
     const trayShell = screenEl.querySelector('.puzzle-tray-shell');
 
     const topH = (topActions?.offsetHeight || 0) + (hud?.offsetHeight || 0);
-    const shellPad = 26;
-    const gaps = 28;
-    const trayHeight = Math.max(126, Math.min(220, Math.round(vh * (gridSize >= 5 ? 0.29 : 0.25))));
-    const sidePad = vw <= 420 ? 28 : 36;
-    const boardByWidth = Math.max(200, Math.min(vw - sidePad, 520));
-    const boardByHeight = Math.max(190, vh - topH - trayHeight - gaps - shellPad - 24);
-    const boardSize = Math.round(Math.max(180, Math.min(boardByWidth, boardByHeight)));
-    const trayPiece = Math.round(Math.max(54, Math.min(gridSize >= 5 ? 72 : 82, (vw - 44) / (gridSize >= 5 ? 4.7 : 4.2))));
+    const shellPad = vw <= 420 ? 20 : 26;
+    const gaps = vw <= 420 ? 22 : 28;
+    const reservedBottom = vw <= 420 ? 44 : 36;
+    const trayHeight = Math.max(120, Math.min(196, Math.round(vh * (gridSize >= 5 ? 0.25 : 0.22))));
+    const sidePad = vw <= 420 ? 24 : 36;
+    const boardByWidth = Math.max(196, Math.min(vw - sidePad, 520));
+    const boardByHeight = Math.max(176, vh - topH - trayHeight - gaps - shellPad - reservedBottom);
+    const boardSize = Math.round(Math.max(176, Math.min(boardByWidth, boardByHeight)));
+    const trayPiece = Math.round(Math.max(50, Math.min(gridSize >= 5 ? 68 : 78, (vw - 40) / (gridSize >= 5 ? 5.0 : 4.35))));
 
     screenEl.style.setProperty('--puzzle-board-size', boardSize + 'px');
     screenEl.style.setProperty('--puzzle-tray-height', trayHeight + 'px');
     screenEl.style.setProperty('--puzzle-tray-piece', trayPiece + 'px');
-    trayShell?.style.setProperty('height', trayHeight + 'px');
+    trayShell?.style.setProperty('min-height', trayHeight + 'px');
+    trayShell?.style.removeProperty('height');
+    requestAnimationFrame(updateTrayHint);
   }
+
+  function updateTrayHint(){
+    if (!trayEl || !trayHintEl) return;
+    const canScrollX = trayEl.scrollWidth - trayEl.clientWidth > 16;
+    const atStart = trayEl.scrollLeft <= 8;
+    const atEnd = trayEl.scrollLeft + trayEl.clientWidth >= trayEl.scrollWidth - 8;
+    trayHintEl.hidden = !canScrollX;
+    trayEl.classList.toggle('is-scrollable', canScrollX);
+    trayEl.classList.toggle('show-left-fade', canScrollX && !atStart);
+    trayEl.classList.toggle('show-right-fade', canScrollX && !atEnd);
+    trayHintEl.textContent = atStart ? 'Листай детали вбок →' : (atEnd ? '← Можно листать назад' : '← Листай в обе стороны →');
+  }
+
 
   function isSolved(){
     return pieces.length > 0 && pieces.every(p => p.placed && p.slot === p.id);
