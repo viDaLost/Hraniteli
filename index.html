@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -153,6 +153,11 @@
             <span class="tile-title">Найди слово</span>
             <span class="tile-sub">Подбери правильное слово к стиху</span>
           </div>
+          <div class="tile" data-nav="puzzle" role="button" tabindex="0">
+            <span class="tile-icon">🧩</span>
+            <span class="tile-title">Библейский пазл</span>
+            <span class="tile-sub">Собирай пазлы из картинок, которые сам добавишь в папку</span>
+          </div>
         </div>
 
         <div class="bottom-action">
@@ -217,6 +222,62 @@
         <div class="bottom-action row">
           <button class="btn secondary" data-back type="button">← Назад</button>
           <button class="btn primary" id="word-btn-next" type="button">Следующее</button>
+        </div>
+      </section>
+
+
+
+      <section id="screen-puzzle" class="screen hidden" data-route="puzzle">
+        <div class="screen-header">
+          <img class="mascot-img" src="assets/mascot_games.png" alt="">
+          <span class="eyebrow">ПАЗЛ ИЗ КАРТИНОК</span>
+          <h1>Библейский пазл</h1>
+          <p class="muted">Добавляй изображения в папку <b>assets/puzzles</b>, а игра сама подхватит их через <b>data/puzzles.json</b>.</p>
+        </div>
+
+        <div class="card card-soft">
+          <div class="puzzle-picker-head">
+            <div>
+              <h2 id="puzzle-title">Выбери изображение</h2>
+              <div id="puzzle-meta" class="muted">Список картинок загружается автоматически</div>
+            </div>
+            <img id="puzzle-preview" class="puzzle-preview" src="assets/mascot_games.png" alt="Предпросмотр">
+          </div>
+          <div id="puzzle-list" class="puzzle-list"></div>
+        </div>
+
+        <div id="puzzle-start" class="card card-soft hidden">
+          <h2>Сложность</h2>
+          <div class="menu-grid">
+            <button class="tile" type="button" data-puzzle-size="3">3 × 3</button>
+            <button class="tile" type="button" data-puzzle-size="4">4 × 4</button>
+            <button class="tile" type="button" data-puzzle-size="5">5 × 5</button>
+          </div>
+          <div id="puzzle-caption" class="muted center" style="margin-top: 10px;"></div>
+          <div class="action-row">
+            <button class="btn secondary" data-back type="button">← Назад</button>
+            <button class="btn secondary" data-nav="menu" type="button">В меню</button>
+          </div>
+        </div>
+
+        <div id="puzzle-game" class="hidden">
+          <div class="top-actions">
+            <button class="btn secondary small" id="puzzle-btn-change" type="button">← Сменить картинку</button>
+            <button class="btn secondary small" id="puzzle-btn-restart" type="button">Перемешать заново</button>
+          </div>
+          <div id="puzzle-info" class="puzzle-info"></div>
+          <div id="puzzle-board" class="puzzle-board"></div>
+          <div class="muted center small" style="margin-top: 10px;">Можно двигать соседнюю плитку или целый ряд/столбец, если пустая клетка на одной линии.</div>
+        </div>
+
+        <div id="puzzle-finish" class="modal hidden">
+          <div class="modal-backdrop"></div>
+          <div class="modal-card center">
+            <img id="puzzle-win-image" class="puzzle-finish-image" src="" alt="">
+            <h2 id="puzzle-win-title">Пазл собран!</h2>
+            <div id="puzzle-win-meta" class="muted"></div>
+            <button class="btn primary" id="puzzle-btn-win-close" type="button">Закрыть</button>
+          </div>
         </div>
       </section>
 
@@ -306,6 +367,7 @@
 
   <script src="games/match.js?v=2" defer></script>
   <script src="games/word.js?v=2" defer></script>
-  <script src="app.js?v=3" defer></script>
+  <script src="games/puzzle.js?v=1" defer></script>
+  <script src="app.js?v=4" defer></script>
 </body>
 </html>

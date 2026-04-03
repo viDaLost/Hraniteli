@@ -468,37 +468,6 @@ input:focus, textarea:focus {
   gap: 8px;
   margin-bottom: 16px;
 }
-
-.admin-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.admin-filters-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-}
-select {
-  width: 100%;
-  padding: 14px 16px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--line);
-  background: var(--surface-alt);
-  color: var(--text);
-  font-size: 15px;
-  font-family: inherit;
-  transition: var(--transition);
-  outline: none;
-  -webkit-appearance: none;
-}
-select:focus {
-  background: rgba(255,255,255,0.95);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-light);
-}
-.search-row.compact { margin-bottom: 0; }
 .admin-users {
   display: flex;
   flex-direction: column;
@@ -511,10 +480,6 @@ select:focus {
   background: rgba(255,255,255,0.88);
   box-shadow: var(--shadow-sm);
 }
-.admin-user[data-stale="1"] {
-  border-color: rgba(217, 83, 79, 0.24);
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,242,241,0.92));
-}
 .admin-user-header {
   display: flex;
   justify-content: space-between;
@@ -522,23 +487,14 @@ select:focus {
   margin-bottom: 10px;
   gap: 12px;
 }
-.admin-user-header > div:first-child { min-width: 0; }
 .admin-user-name { font-weight: 800; font-size: 15px; }
 .admin-user-dob { color: var(--muted); font-size: 12px; margin-left: 8px; }
-.admin-user-id { color: var(--muted); font-size: 11px; text-align: right; }
-.admin-user-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.admin-user-meta .pill { min-height: 28px; font-size: 11px; padding: 5px 10px; }
+.admin-user-id { color: var(--muted); font-size: 11px; }
 .admin-user-scores {
   display: flex;
   gap: 6px;
   align-items: center;
 }
-.admin-user-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-.admin-user-actions .btn { margin: 0; }
 .score-item {
   display: flex;
   align-items: center;
@@ -680,4 +636,97 @@ html, body {
   .search-row { grid-template-columns: 1fr; }
   .account-banner { flex-direction: column; align-items: stretch; }
   .btn.btn-inline { width: 100%; }
+}
+
+.puzzle-picker-head {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.puzzle-preview,
+.puzzle-finish-image {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid rgba(45,41,38,.08);
+  box-shadow: var(--shadow-sm);
+  background: #fff;
+}
+.puzzle-finish-image {
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 14px;
+}
+.puzzle-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.puzzle-card {
+  border: 1px solid rgba(45,41,38,.08);
+  background: rgba(255,255,255,.9);
+  border-radius: 22px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  box-shadow: var(--shadow-sm);
+}
+.puzzle-card-image {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+.puzzle-card-title {
+  font-size: 17px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.puzzle-card-sub { color: var(--muted); font-size: 13px; }
+.puzzle-info {
+  text-align: center;
+  color: var(--primary-dark);
+  font-weight: 700;
+  margin: 12px 0;
+}
+.puzzle-board {
+  --puzzle-size: 3;
+  display: grid;
+  grid-template-columns: repeat(var(--puzzle-size), 1fr);
+  gap: 6px;
+  width: min(100%, 390px);
+  margin: 0 auto;
+  padding: 10px;
+  border-radius: 24px;
+  background: rgba(255,255,255,.7);
+  box-shadow: var(--shadow-md);
+}
+.puzzle-tile {
+  border: 0;
+  border-radius: 16px;
+  background-color: #efe5d8;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.7), 0 6px 16px rgba(88,57,33,.12);
+  background-repeat: no-repeat;
+}
+.puzzle-tile.empty {
+  background: repeating-linear-gradient(45deg, rgba(142,106,75,.08), rgba(142,106,75,.08) 10px, rgba(255,255,255,.55) 10px, rgba(255,255,255,.55) 20px);
+  box-shadow: inset 0 0 0 1px rgba(45,41,38,.06);
+}
+.puzzle-tile.selected {
+  outline: 3px solid rgba(142,106,75,.45);
+  transform: translateY(-1px);
+}
+@media (max-width: 360px) {
+  .puzzle-picker-head { grid-template-columns: 1fr 78px; }
+  .puzzle-preview { width: 78px; height: 78px; }
+  .puzzle-card { grid-template-columns: 72px 1fr; }
+  .puzzle-card-image { width: 72px; height: 72px; }
 }
