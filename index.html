@@ -266,8 +266,19 @@
             <button class="btn secondary small" id="puzzle-btn-restart" type="button">Перемешать заново</button>
           </div>
           <div id="puzzle-info" class="puzzle-info"></div>
-          <div id="puzzle-board" class="puzzle-board"></div>
-          <div class="muted center small" style="margin-top: 10px;">Можно двигать соседнюю плитку или целый ряд/столбец, если пустая клетка на одной линии.</div>
+          <div class="puzzle-playfield card card-soft">
+            <div class="puzzle-stage-wrap">
+              <div id="puzzle-board" class="puzzle-board"></div>
+              <div id="puzzle-complete" class="puzzle-complete hidden"></div>
+            </div>
+            <div class="puzzle-side-meta">
+              <div class="puzzle-mini-label">Образец</div>
+              <img id="puzzle-reference" class="puzzle-reference" src="assets/mascot_games.png" alt="Образец пазла">
+              <div class="muted small center">Перетащи фрагмент в правильную ячейку. Если место верное, деталь прилипнет.</div>
+            </div>
+          </div>
+          <div class="puzzle-mini-label" style="margin-top:14px;">Детали пазла</div>
+          <div id="puzzle-tray" class="puzzle-tray"></div>
         </div>
 
         <div id="puzzle-finish" class="modal hidden">
