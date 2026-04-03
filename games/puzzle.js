@@ -12,8 +12,13 @@
   let dragState = null;
   let timerId = null;
 
-  let boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl,
+  let screenEl, headerEl, pickerCardEl,
+    boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl,
     winImageEl, captionEl, trayEl, referenceEl, completeEl;
+
+  const preventTouchScroll = (ev) => {
+    if (dragState) ev.preventDefault();
+  };
 
   function qs(id){ return document.getElementById(id); }
 
@@ -22,6 +27,9 @@
     hNotify = deps.hNotify || hNotify;
     hSelect = deps.hSelect || hSelect;
 
+    screenEl = qs('screen-puzzle');
+    headerEl = qs('puzzle-header');
+    pickerCardEl = qs('puzzle-picker-card');
     boardEl = qs('puzzle-board');
     listEl = qs('puzzle-list');
     titleEl = qs('puzzle-title');
@@ -126,7 +134,12 @@
   function showPicker(){
     startEl?.classList.remove('hidden');
     gameEl?.classList.add('hidden');
+    screenEl?.classList.remove('puzzle-playing', 'drag-lock');
+    headerEl?.classList.remove('hidden');
+    pickerCardEl?.classList.remove('hidden');
+    stopDrag();
     stopTimer();
+    try { window.Telegram?.WebApp?.enableVerticalSwipes?.(); } catch {}
   }
 
   function startGame(item, size){
@@ -143,11 +156,16 @@
     completeEl?.classList.add('hidden');
     completeEl && (completeEl.style.backgroundImage = `url("${item.image}")`);
     referenceEl && (referenceEl.src = item.image);
+    screenEl?.classList.add('puzzle-playing');
+    headerEl?.classList.add('hidden');
+    pickerCardEl?.classList.add('hidden');
 
     renderBoard();
     renderTray();
     updateInfo();
     startTimer();
+    requestAnimationFrame(() => trayEl?.scrollTo({ left: 0, top: 0 }));
+    try { window.Telegram?.WebApp?.disableVerticalSwipes?.(); } catch {}
     hImpact('medium');
   }
 
@@ -186,6 +204,7 @@
 
   function renderTray(){
     trayEl.innerHTML = '';
+    trayEl.style.setProperty('--puzzle-size', String(gridSize));
     const frag = document.createDocumentFragment();
     pieces.filter(p => !p.placed).forEach(piece => frag.appendChild(createPieceEl(piece, false)));
     trayEl.appendChild(frag);
@@ -231,6 +250,9 @@
     ghost.style.pointerEvents = 'none';
     document.body.appendChild(ghost);
     sourceEl.classList.add('holding');
+    screenEl?.classList.add('drag-lock');
+    document.body.classList.add('drag-lock');
+    document.addEventListener('touchmove', preventTouchScroll, { passive: false });
 
     dragState = {
       pieceId,
@@ -302,7 +324,18 @@
       hImpact('rigid');
     }
 
+    stopDrag();
+  }
+
+  function stopDrag(){
+    if (dragState?.sourceEl) dragState.sourceEl.classList.remove('holding');
+    if (dragState?.ghost) dragState.ghost.remove();
     dragState = null;
+    window.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('touchmove', preventTouchScroll);
+    document.querySelectorAll('.puzzle-slot.hover-ok, .puzzle-slot.hover-bad').forEach(el => el.classList.remove('hover-ok', 'hover-bad'));
+    screenEl?.classList.remove('drag-lock');
+    document.body.classList.remove('drag-lock');
   }
 
   function isSolved(){
@@ -326,7 +359,7 @@
     if (!infoEl) return;
     const secs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     const left = pieces.filter(p => !p.placed).length;
-    infoEl.textContent = `Сетка ${gridSize}×${gridSize} • Осталось: ${left} • Перетаскиваний: ${moves} • Время: ${formatTime(secs)}`;
+    infoEl.textContent = `Сетка ${gridSize}×${gridSize} • Осталось: ${left} • Ходы: ${moves} • Время: ${formatTime(secs)}`;
   }
 
   function startTimer(){
