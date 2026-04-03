@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-03T21:12:14.962Z",
+  "generatedAt": "2026-04-03T21:12:47.685Z",
   "items": [
     {
       "id": "Воин и доспехи",
@@ -11,9 +11,9 @@
       "order": 1
     },
     {
-      "id": "IMG_3421",
-      "title": "IMG 3421",
-      "image": "assets/puzzles/IMG_3421.png",
+      "id": "Солнечная система",
+      "title": "Солнечная система",
+      "image": "assets/puzzles/Солнечная система.png",
       "theme": "Библейский пазл",
       "verse": "",
       "caption": "",
