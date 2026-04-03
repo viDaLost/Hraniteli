@@ -328,6 +328,14 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   touch-action: none; /* Запрещаем жесты браузера */
 }
 
+/* ОЧЕНЬ ВАЖНО: Скрываем меню, когда игра запущена, чтобы поле не плющило */
+#screen-puzzle.puzzle-playing #puzzle-header,
+#screen-puzzle.puzzle-playing .screen-header,
+#screen-puzzle.puzzle-playing #puzzle-picker-card,
+#screen-puzzle.puzzle-playing #puzzle-start {
+  display: none !important;
+}
+
 #puzzle-game {
   display: flex;
   flex-direction: column;
@@ -381,17 +389,17 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 .puzzle-stage-wrap {
   position: relative;
-  width: 100%;
-  height: 100%;
-  max-width: 500px;
-  max-height: 500px;
-  aspect-ratio: 1 / 1;
+  height: 100%; /* Берем всю доступную высоту... */
+  max-height: calc(100vw - 32px); /* ...но не даем быть больше ширины экрана, чтобы не вылезти за края */
+  aspect-ratio: 1 / 1; /* Жестко сохраняем квадратные пропорции */
   margin: 0 auto;
 }
 
 /* СЕТКА ПАЗЛА: Без дырок и скруглений для монолитного изображения */
 .puzzle-board {
   --puzzle-size: 3;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: grid;
@@ -443,6 +451,8 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .puzzle-complete {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   background-size: cover;
   background-position: center;
   border-radius: 12px;
