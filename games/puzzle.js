@@ -11,12 +11,17 @@
   let pieces = [];
   let dragState = null;
   let timerId = null;
+  let resizeBound = false;
 
   let screenEl, headerEl, pickerCardEl,
     boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl,
     winImageEl, captionEl, trayEl, referenceEl, completeEl;
 
   const preventTouchScroll = (ev) => {
+    if (dragState) ev.preventDefault();
+  };
+
+  const preventWheelScroll = (ev) => {
     if (dragState) ev.preventDefault();
   };
 
@@ -135,6 +140,8 @@
     startEl?.classList.remove('hidden');
     gameEl?.classList.add('hidden');
     screenEl?.classList.remove('puzzle-playing', 'drag-lock');
+    document.documentElement.classList.remove('drag-lock');
+    document.body.classList.remove('drag-lock');
     headerEl?.classList.remove('hidden');
     pickerCardEl?.classList.remove('hidden');
     stopDrag();
@@ -162,10 +169,16 @@
 
     renderBoard();
     renderTray();
+    applyResponsiveLayout();
     updateInfo();
     startTimer();
     requestAnimationFrame(() => trayEl?.scrollTo({ left: 0, top: 0 }));
     try { window.Telegram?.WebApp?.disableVerticalSwipes?.(); } catch {}
+    if (!resizeBound) {
+      resizeBound = true;
+      window.addEventListener('resize', applyResponsiveLayout, { passive: true });
+      window.addEventListener('orientationchange', applyResponsiveLayout, { passive: true });
+    }
     hImpact('medium');
   }
 
@@ -250,9 +263,12 @@
     ghost.style.pointerEvents = 'none';
     document.body.appendChild(ghost);
     sourceEl.classList.add('holding');
+    try { sourceEl.setPointerCapture(ev.pointerId); } catch {}
     screenEl?.classList.add('drag-lock');
     document.body.classList.add('drag-lock');
+    document.documentElement.classList.add('drag-lock');
     document.addEventListener('touchmove', preventTouchScroll, { passive: false });
+    document.addEventListener('wheel', preventWheelScroll, { passive: false });
 
     dragState = {
       pieceId,
@@ -266,6 +282,7 @@
     moveGhost(ev.clientX, ev.clientY);
     window.addEventListener('pointermove', onPointerMove, { passive: false });
     window.addEventListener('pointerup', onPointerUp, { passive: false, once: true });
+    window.addEventListener('pointercancel', onPointerUp, { passive: false, once: true });
     hSelect();
   }
 
@@ -332,10 +349,38 @@
     if (dragState?.ghost) dragState.ghost.remove();
     dragState = null;
     window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointercancel', onPointerUp);
     document.removeEventListener('touchmove', preventTouchScroll);
+    document.removeEventListener('wheel', preventWheelScroll);
     document.querySelectorAll('.puzzle-slot.hover-ok, .puzzle-slot.hover-bad').forEach(el => el.classList.remove('hover-ok', 'hover-bad'));
     screenEl?.classList.remove('drag-lock');
     document.body.classList.remove('drag-lock');
+    document.documentElement.classList.remove('drag-lock');
+  }
+
+
+  function applyResponsiveLayout(){
+    if (!screenEl || !gameEl || gameEl.classList.contains('hidden')) return;
+    const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const vh = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+    const topActions = screenEl.querySelector('.top-actions');
+    const hud = screenEl.querySelector('.puzzle-hud');
+    const trayShell = screenEl.querySelector('.puzzle-tray-shell');
+
+    const topH = (topActions?.offsetHeight || 0) + (hud?.offsetHeight || 0);
+    const shellPad = 26;
+    const gaps = 28;
+    const trayHeight = Math.max(126, Math.min(220, Math.round(vh * (gridSize >= 5 ? 0.29 : 0.25))));
+    const sidePad = vw <= 420 ? 28 : 36;
+    const boardByWidth = Math.max(200, Math.min(vw - sidePad, 520));
+    const boardByHeight = Math.max(190, vh - topH - trayHeight - gaps - shellPad - 24);
+    const boardSize = Math.round(Math.max(180, Math.min(boardByWidth, boardByHeight)));
+    const trayPiece = Math.round(Math.max(54, Math.min(gridSize >= 5 ? 72 : 82, (vw - 44) / (gridSize >= 5 ? 4.7 : 4.2))));
+
+    screenEl.style.setProperty('--puzzle-board-size', boardSize + 'px');
+    screenEl.style.setProperty('--puzzle-tray-height', trayHeight + 'px');
+    screenEl.style.setProperty('--puzzle-tray-piece', trayPiece + 'px');
+    trayShell?.style.setProperty('height', trayHeight + 'px');
   }
 
   function isSolved(){
