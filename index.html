@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -225,8 +225,6 @@
         </div>
       </section>
 
-
-
       <section id="screen-puzzle" class="screen hidden" data-route="puzzle">
         <div class="screen-header">
           <img class="mascot-img" src="assets/mascot_games.png" alt="">
@@ -265,28 +263,25 @@
             <button class="btn secondary small" id="puzzle-btn-change" type="button">← Сменить картинку</button>
             <button class="btn secondary small" id="puzzle-btn-restart" type="button">Перемешать заново</button>
           </div>
-          <div class="puzzle-game-shell">
-            <div class="puzzle-hud card card-soft">
-              <div id="puzzle-info" class="puzzle-info"></div>
-              <div class="puzzle-reference-chip">
-                <div class="puzzle-mini-label">Образец</div>
-                <img id="puzzle-reference" class="puzzle-reference" src="assets/mascot_games.png" alt="Образец пазла">
-              </div>
+          
+          <div class="puzzle-hud card card-soft">
+            <div id="puzzle-info" class="puzzle-info"></div>
+            <img id="puzzle-reference" class="puzzle-reference" src="assets/mascot_games.png" alt="Образец пазла">
+          </div>
+          
+          <div class="puzzle-playfield card card-soft">
+            <div class="puzzle-stage-wrap">
+              <div id="puzzle-board" class="puzzle-board"></div>
+              <div id="puzzle-complete" class="puzzle-complete hidden"></div>
             </div>
-            <div class="puzzle-playfield card card-soft">
-              <div class="puzzle-stage-wrap">
-                <div id="puzzle-board" class="puzzle-board"></div>
-                <div id="puzzle-complete" class="puzzle-complete hidden"></div>
-              </div>
+          </div>
+          
+          <div class="puzzle-tray-shell card card-soft">
+            <div class="puzzle-tray-head">
+              <div class="puzzle-mini-label">Детали пазла</div>
+              <div id="puzzle-tray-hint" class="muted small" hidden>Листай вбок →</div>
             </div>
-            <div class="puzzle-tray-shell card card-soft">
-              <div class="puzzle-tray-head">
-                <div class="puzzle-mini-label">Детали пазла</div>
-                <div class="muted small">Тяни снизу на поле — экран не должен прыгать</div>
-              </div>
-              <div id="puzzle-tray-hint" class="puzzle-tray-hint" hidden>Листай детали вбок →</div>
-              <div id="puzzle-tray" class="puzzle-tray"></div>
-            </div>
+            <div id="puzzle-tray" class="puzzle-tray"></div>
           </div>
         </div>
 
@@ -296,7 +291,7 @@
             <img id="puzzle-win-image" class="puzzle-finish-image" src="" alt="">
             <h2 id="puzzle-win-title">Пазл собран!</h2>
             <div id="puzzle-win-meta" class="muted"></div>
-            <button class="btn primary" id="puzzle-btn-win-close" type="button">Закрыть</button>
+            <button class="btn primary" id="puzzle-btn-win-close" type="button" style="margin-top: 16px;">Закрыть</button>
           </div>
         </div>
       </section>
@@ -387,7 +382,7 @@
 
   <script src="games/match.js?v=2" defer></script>
   <script src="games/word.js?v=2" defer></script>
-  <script src="games/puzzle.js?v=1" defer></script>
+  <script src="games/puzzle.js?v=2" defer></script>
   <script src="app.js?v=4" defer></script>
 </body>
 </html>
