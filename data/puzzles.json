@@ -1,4 +1,14 @@
 {
-  "generatedAt": "2026-04-03T19:38:42.648Z",
-  "items": []
+  "generatedAt": "2026-04-03T19:43:53.360Z",
+  "items": [
+    {
+      "id": "IMG_3411",
+      "title": "IMG 3411",
+      "image": "assets/puzzles/IMG_3411.jpeg",
+      "theme": "Библейский пазл",
+      "verse": "",
+      "caption": "",
+      "order": 1
+    }
+  ]
 }
