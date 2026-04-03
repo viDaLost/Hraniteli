@@ -265,20 +265,29 @@
             <button class="btn secondary small" id="puzzle-btn-change" type="button">← Сменить картинку</button>
             <button class="btn secondary small" id="puzzle-btn-restart" type="button">Перемешать заново</button>
           </div>
-          <div id="puzzle-info" class="puzzle-info"></div>
-          <div class="puzzle-playfield card card-soft">
-            <div class="puzzle-stage-wrap">
-              <div id="puzzle-board" class="puzzle-board"></div>
-              <div id="puzzle-complete" class="puzzle-complete hidden"></div>
+          <div class="puzzle-game-shell">
+            <div class="puzzle-hud card card-soft">
+              <div id="puzzle-info" class="puzzle-info"></div>
+              <div class="puzzle-reference-chip">
+                <div class="puzzle-mini-label">Образец</div>
+                <img id="puzzle-reference" class="puzzle-reference" src="assets/mascot_games.png" alt="Образец пазла">
+              </div>
             </div>
-            <div class="puzzle-side-meta">
-              <div class="puzzle-mini-label">Образец</div>
-              <img id="puzzle-reference" class="puzzle-reference" src="assets/mascot_games.png" alt="Образец пазла">
-              <div class="muted small center">Перетяни фрагмент в нужную ячейку. Во время игры все детали видны снизу без длинной прокрутки.</div>
+            <div class="puzzle-playfield card card-soft">
+              <div class="puzzle-stage-wrap">
+                <div id="puzzle-board" class="puzzle-board"></div>
+                <div id="puzzle-complete" class="puzzle-complete hidden"></div>
+              </div>
+            </div>
+            <div class="puzzle-tray-shell card card-soft">
+              <div class="puzzle-tray-head">
+                <div class="puzzle-mini-label">Детали пазла</div>
+                <div class="muted small">Тяни снизу на поле — экран не должен прыгать</div>
+              </div>
+              <div id="puzzle-tray-hint" class="puzzle-tray-hint" hidden>Листай детали вбок →</div>
+              <div id="puzzle-tray" class="puzzle-tray"></div>
             </div>
           </div>
-          <div class="puzzle-mini-label" style="margin-top:14px;">Детали пазла</div>
-          <div id="puzzle-tray" class="puzzle-tray"></div>
         </div>
 
         <div id="puzzle-finish" class="modal hidden">
