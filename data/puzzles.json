@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-03T20:57:16.216Z",
+  "generatedAt": "2026-04-03T21:12:14.962Z",
   "items": [
     {
       "id": "Воин и доспехи",
@@ -9,6 +9,15 @@
       "verse": "",
       "caption": "",
       "order": 1
+    },
+    {
+      "id": "IMG_3421",
+      "title": "IMG 3421",
+      "image": "assets/puzzles/IMG_3421.png",
+      "theme": "Библейский пазл",
+      "verse": "",
+      "caption": "",
+      "order": 2
     }
   ]
 }
