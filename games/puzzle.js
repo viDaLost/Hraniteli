@@ -6,12 +6,14 @@
   let data = [];
   let activePuzzle = null;
   let gridSize = 3;
-  let emptyIndex = 0;
   let moves = 0;
   let startedAt = 0;
-  let board = [];
-  let boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl, winImageEl, captionEl;
-  let selectedIndex = -1;
+  let pieces = [];
+  let dragState = null;
+  let timerId = null;
+
+  let boardEl, listEl, titleEl, metaEl, previewEl, startEl, gameEl, finishEl, infoEl,
+    winImageEl, captionEl, trayEl, referenceEl, completeEl;
 
   function qs(id){ return document.getElementById(id); }
 
@@ -31,6 +33,9 @@
     infoEl = qs('puzzle-info');
     winImageEl = qs('puzzle-win-image');
     captionEl = qs('puzzle-caption');
+    trayEl = qs('puzzle-tray');
+    referenceEl = qs('puzzle-reference');
+    completeEl = qs('puzzle-complete');
 
     bindOnce('puzzle-btn-restart', 'click', () => {
       if (!activePuzzle) return;
@@ -55,8 +60,6 @@
         startGame(activePuzzle, Number(btn.dataset.puzzleSize || 3));
       });
     });
-
-    boardEl?.addEventListener('click', onBoardClick);
 
     await loadList();
     renderList();
@@ -112,6 +115,10 @@
     metaEl.textContent = activePuzzle.verse || activePuzzle.theme || 'Собери картинку целиком';
     previewEl.src = activePuzzle.image;
     previewEl.alt = activePuzzle.title || 'Пазл';
+    if (referenceEl) {
+      referenceEl.src = activePuzzle.image;
+      referenceEl.alt = activePuzzle.title || 'Пазл';
+    }
     captionEl.textContent = activePuzzle.caption || activePuzzle.theme || '';
     showPicker();
   }
@@ -119,121 +126,196 @@
   function showPicker(){
     startEl?.classList.remove('hidden');
     gameEl?.classList.add('hidden');
+    stopTimer();
   }
 
   function startGame(item, size){
-    if (!item || !boardEl) return;
+    if (!item || !boardEl || !trayEl) return;
     activePuzzle = item;
     gridSize = size;
-    selectedIndex = -1;
     moves = 0;
     startedAt = Date.now();
-    emptyIndex = size * size - 1;
-    board = Array.from({ length: size * size }, (_, i) => i);
-
-    do {
-      shuffleBoard();
-    } while (!isSolvable(board, size) || isSolved());
+    pieces = createPieces(size);
 
     startEl?.classList.add('hidden');
     gameEl?.classList.remove('hidden');
     finishEl?.classList.add('hidden');
+    completeEl?.classList.add('hidden');
+    completeEl && (completeEl.style.backgroundImage = `url("${item.image}")`);
+    referenceEl && (referenceEl.src = item.image);
 
     renderBoard();
+    renderTray();
     updateInfo();
+    startTimer();
     hImpact('medium');
   }
 
-  function shuffleBoard(){
-    for (let i = board.length - 2; i > 0; i--) {
+  function createPieces(size){
+    const total = size * size;
+    const arr = Array.from({ length: total }, (_, i) => ({
+      id: i,
+      slot: i,
+      placed: false,
+    }));
+    shuffle(arr);
+    return arr;
+  }
+
+  function shuffle(arr){
+    for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [board[i], board[j]] = [board[j], board[i]];
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    board[board.length - 1] = emptyIndex;
+  }
+
+  function renderBoard(){
+    boardEl.innerHTML = '';
+    boardEl.style.setProperty('--puzzle-size', String(gridSize));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < gridSize * gridSize; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'puzzle-slot';
+      slot.dataset.slot = String(i);
+      const piece = pieces.find(p => p.placed && p.slot === i);
+      if (piece) slot.appendChild(createPieceEl(piece, true));
+      frag.appendChild(slot);
+    }
+    boardEl.appendChild(frag);
+  }
+
+  function renderTray(){
+    trayEl.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    pieces.filter(p => !p.placed).forEach(piece => frag.appendChild(createPieceEl(piece, false)));
+    trayEl.appendChild(frag);
+  }
+
+  function createPieceEl(piece, locked){
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'puzzle-piece' + (locked ? ' locked' : '');
+    el.dataset.pieceId = String(piece.id);
+    applyPieceImage(el, piece.id);
+    if (!locked) {
+      el.addEventListener('pointerdown', onPiecePointerDown);
+    }
+    return el;
+  }
+
+  function applyPieceImage(el, pieceId){
+    const row = Math.floor(pieceId / gridSize);
+    const col = pieceId % gridSize;
+    const step = gridSize > 1 ? 100 / (gridSize - 1) : 100;
+    el.style.backgroundImage = `url("${activePuzzle.image}")`;
+    el.style.backgroundSize = `${gridSize * 100}% ${gridSize * 100}%`;
+    el.style.backgroundPosition = `${col * step}% ${row * step}%`;
+  }
+
+  function onPiecePointerDown(ev){
+    const sourceEl = ev.currentTarget;
+    const pieceId = Number(sourceEl.dataset.pieceId);
+    const piece = pieces.find(p => p.id === pieceId && !p.placed);
+    if (!piece) return;
+
+    ev.preventDefault();
+    const rect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    ghost.classList.add('dragging');
+    ghost.style.position = 'fixed';
+    ghost.style.left = rect.left + 'px';
+    ghost.style.top = rect.top + 'px';
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+    ghost.style.zIndex = '9999';
+    ghost.style.pointerEvents = 'none';
+    document.body.appendChild(ghost);
+    sourceEl.classList.add('holding');
+
+    dragState = {
+      pieceId,
+      sourceEl,
+      ghost,
+      offsetX: ev.clientX - rect.left,
+      offsetY: ev.clientY - rect.top,
+      overSlot: null,
+    };
+
+    moveGhost(ev.clientX, ev.clientY);
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: false, once: true });
+    hSelect();
+  }
+
+  function onPointerMove(ev){
+    if (!dragState) return;
+    ev.preventDefault();
+    moveGhost(ev.clientX, ev.clientY);
+    updateHoveredSlot(ev.clientX, ev.clientY, dragState.pieceId);
+  }
+
+  function moveGhost(clientX, clientY){
+    const { ghost, offsetX, offsetY } = dragState;
+    ghost.style.left = (clientX - offsetX) + 'px';
+    ghost.style.top = (clientY - offsetY) + 'px';
+  }
+
+  function updateHoveredSlot(clientX, clientY, pieceId){
+    const hovered = document.elementFromPoint(clientX, clientY)?.closest('.puzzle-slot');
+    document.querySelectorAll('.puzzle-slot.hover-ok, .puzzle-slot.hover-bad').forEach(el => el.classList.remove('hover-ok', 'hover-bad'));
+    dragState.overSlot = null;
+    if (!hovered) return;
+    const slotIndex = Number(hovered.dataset.slot);
+    const piece = pieces.find(p => p.id === pieceId);
+    if (!piece) return;
+    const occupied = pieces.some(p => p.placed && p.slot === slotIndex);
+    const ok = !occupied && slotIndex === piece.id;
+    hovered.classList.add(ok ? 'hover-ok' : 'hover-bad');
+    dragState.overSlot = hovered;
+  }
+
+  function onPointerUp(ev){
+    if (!dragState) return;
+    ev.preventDefault();
+    updateHoveredSlot(ev.clientX, ev.clientY, dragState.pieceId);
+
+    const { pieceId, sourceEl, ghost, overSlot } = dragState;
+    sourceEl.classList.remove('holding');
+    ghost.remove();
+    document.querySelectorAll('.puzzle-slot.hover-ok, .puzzle-slot.hover-bad').forEach(el => el.classList.remove('hover-ok', 'hover-bad'));
+    window.removeEventListener('pointermove', onPointerMove);
+
+    const piece = pieces.find(p => p.id === pieceId);
+    const slotIndex = overSlot ? Number(overSlot.dataset.slot) : -1;
+    const occupied = pieces.some(p => p.placed && p.slot === slotIndex);
+
+    if (piece && slotIndex === piece.id && !occupied) {
+      piece.placed = true;
+      piece.slot = slotIndex;
+      moves += 1;
+      renderBoard();
+      renderTray();
+      updateInfo();
+      hImpact('light');
+      if (isSolved()) onWin();
+    } else {
+      hImpact('rigid');
+    }
+
+    dragState = null;
   }
 
   function isSolved(){
-    return board.every((v, i) => v === i);
-  }
-
-  function onBoardClick(e){
-    const tile = e.target.closest('.puzzle-tile');
-    if (!tile || tile.dataset.empty === '1') return;
-    const index = Number(tile.dataset.index);
-    if (!Number.isFinite(index)) return;
-
-    if (canMove(index)) {
-      moveTile(index);
-      return;
-    }
-
-    if (selectedIndex === index) {
-      selectedIndex = -1;
-      renderBoard();
-      return;
-    }
-
-    const canSelect = canReachEmptyByLine(index);
-    if (canSelect) {
-      selectedIndex = index;
-      renderBoard();
-      hSelect();
-    }
-  }
-
-  function canMove(index){
-    const row = Math.floor(index / gridSize);
-    const col = index % gridSize;
-    const erow = Math.floor(emptyIndex / gridSize);
-    const ecol = emptyIndex % gridSize;
-    return (row === erow && Math.abs(col - ecol) === 1) || (col === ecol && Math.abs(row - erow) === 1);
-  }
-
-  function canReachEmptyByLine(index){
-    const row = Math.floor(index / gridSize);
-    const col = index % gridSize;
-    const erow = Math.floor(emptyIndex / gridSize);
-    const ecol = emptyIndex % gridSize;
-    return row === erow || col === ecol;
-  }
-
-  function moveTile(index){
-    const row = Math.floor(index / gridSize);
-    const col = index % gridSize;
-    const erow = Math.floor(emptyIndex / gridSize);
-    const ecol = emptyIndex % gridSize;
-
-    const indices = [];
-    if (row === erow) {
-      const dir = col < ecol ? 1 : -1;
-      for (let c = ecol - dir; c !== col - dir; c -= dir) indices.push(row * gridSize + c);
-    } else if (col === ecol) {
-      const dir = row < erow ? 1 : -1;
-      for (let r = erow - dir; r !== row - dir; r -= dir) indices.push(r * gridSize + col);
-    } else {
-      return;
-    }
-
-    for (let i = 0; i < indices.length; i++) {
-      const src = indices[i];
-      const dst = i === 0 ? emptyIndex : indices[i - 1];
-      [board[dst], board[src]] = [board[src], board[dst]];
-    }
-
-    emptyIndex = index;
-    selectedIndex = -1;
-    moves += 1;
-    renderBoard();
-    updateInfo();
-    hImpact('light');
-
-    if (isSolved()) onWin();
+    return pieces.length > 0 && pieces.every(p => p.placed && p.slot === p.id);
   }
 
   function onWin(){
+    stopTimer();
+    boardEl.classList.add('solved');
+    completeEl?.classList.remove('hidden');
     const secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     qs('puzzle-win-title').textContent = `Готово! ${activePuzzle?.title || 'Пазл'} собран.`;
-    qs('puzzle-win-meta').textContent = `Ходов: ${moves} • Время: ${formatTime(secs)} • Сетка: ${gridSize}×${gridSize}`;
+    qs('puzzle-win-meta').textContent = `Деталей: ${gridSize * gridSize} • Перетаскиваний: ${moves} • Время: ${formatTime(secs)}`;
     winImageEl.src = activePuzzle.image;
     winImageEl.alt = activePuzzle.title || 'Собранный пазл';
     finishEl?.classList.remove('hidden');
@@ -243,49 +325,19 @@
   function updateInfo(){
     if (!infoEl) return;
     const secs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-    infoEl.textContent = `Сетка ${gridSize}×${gridSize} • Ходы: ${moves} • Время: ${formatTime(secs)}`;
+    const left = pieces.filter(p => !p.placed).length;
+    infoEl.textContent = `Сетка ${gridSize}×${gridSize} • Осталось: ${left} • Перетаскиваний: ${moves} • Время: ${formatTime(secs)}`;
   }
 
-  function renderBoard(){
-    if (!boardEl || !activePuzzle) return;
-    boardEl.style.setProperty('--puzzle-size', String(gridSize));
-    boardEl.innerHTML = '';
-
-    const step = 100 / (gridSize - 1 || 1);
-
-    board.forEach((piece, index) => {
-      const isEmpty = piece === gridSize * gridSize - 1;
-      const tile = document.createElement('button');
-      tile.type = 'button';
-      tile.className = 'puzzle-tile' + (isEmpty ? ' empty' : '') + (selectedIndex === index ? ' selected' : '');
-      tile.dataset.index = String(index);
-      tile.dataset.empty = isEmpty ? '1' : '0';
-      tile.style.width = '100%';
-      tile.style.aspectRatio = '1 / 1';
-
-      if (!isEmpty) {
-        const pieceRow = Math.floor(piece / gridSize);
-        const pieceCol = piece % gridSize;
-        tile.style.backgroundImage = `url("${activePuzzle.image}")`;
-        tile.style.backgroundSize = `${gridSize * 100}% ${gridSize * 100}%`;
-        tile.style.backgroundPosition = `${pieceCol * step}% ${pieceRow * step}%`;
-      }
-
-      boardEl.appendChild(tile);
-    });
+  function startTimer(){
+    stopTimer();
+    boardEl.classList.remove('solved');
+    timerId = setInterval(updateInfo, 1000);
   }
 
-  function isSolvable(arr, size){
-    const values = arr.filter(v => v !== size * size - 1);
-    let inversions = 0;
-    for (let i = 0; i < values.length; i++) {
-      for (let j = i + 1; j < values.length; j++) {
-        if (values[i] > values[j]) inversions++;
-      }
-    }
-    if (size % 2 === 1) return inversions % 2 === 0;
-    const blankRowFromBottom = size - Math.floor(arr.indexOf(size * size - 1) / size);
-    return blankRowFromBottom % 2 === 0 ? inversions % 2 === 1 : inversions % 2 === 0;
+  function stopTimer(){
+    if (timerId) clearInterval(timerId);
+    timerId = null;
   }
 
   function formatTime(secs){
