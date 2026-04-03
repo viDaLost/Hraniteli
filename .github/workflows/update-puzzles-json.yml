@@ -1,0 +1,44 @@
+name: Update puzzles.json
+
+on:
+  push:
+    paths:
+      - 'assets/puzzles/**'
+      - 'scripts/generate-puzzles-json.js'
+      - '.github/workflows/update-puzzles-json.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-puzzles-json:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate puzzles.json
+        run: node scripts/generate-puzzles-json.js
+
+      - name: Commit updated puzzles.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet data/puzzles.json; then
+            echo "No changes in data/puzzles.json"
+            exit 0
+          fi
+
+          git add data/puzzles.json
+          git commit -m "chore: update puzzles.json"
+          git push
