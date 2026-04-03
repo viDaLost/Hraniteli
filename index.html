@@ -136,7 +136,7 @@
       </section>
 
       <section id="screen-games" class="screen hidden" data-route="games">
-        <div class="screen-header">
+        <div id="puzzle-header" class="screen-header">
           <img class="mascot-img" src="assets/mascot_games.png" alt="">
           <span class="eyebrow">ИГРОВАЯ КОМНАТА</span>
           <h1>Библейские игры</h1>
@@ -235,7 +235,7 @@
           <p class="muted">Добавляй изображения в папку <b>assets/puzzles</b>, а игра сама подхватит их через <b>data/puzzles.json</b>.</p>
         </div>
 
-        <div class="card card-soft">
+        <div id="puzzle-picker-card" class="card card-soft">
           <div class="puzzle-picker-head">
             <div>
               <h2 id="puzzle-title">Выбери изображение</h2>
@@ -274,7 +274,7 @@
             <div class="puzzle-side-meta">
               <div class="puzzle-mini-label">Образец</div>
               <img id="puzzle-reference" class="puzzle-reference" src="assets/mascot_games.png" alt="Образец пазла">
-              <div class="muted small center">Перетащи фрагмент в правильную ячейку. Если место верное, деталь прилипнет.</div>
+              <div class="muted small center">Перетяни фрагмент в нужную ячейку. Во время игры все детали видны снизу без длинной прокрутки.</div>
             </div>
           </div>
           <div class="puzzle-mini-label" style="margin-top:14px;">Детали пазла</div>
