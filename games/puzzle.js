@@ -107,20 +107,17 @@
     listEl.innerHTML = '';
 
     if (!data.length) {
-      listEl.innerHTML = '<div class="card card-soft"><p class="muted center">В папке <b>assets/puzzles</b> пока нет изображений. Добавь файл и GitHub Action сам обновит список пазлов.</p></div>';
+      listEl.innerHTML = '<div class="card card-soft" style="grid-column: 1 / -1;"><p class="muted center">В папке <b>assets/puzzles</b> пока нет изображений. Добавь файл и GitHub Action сам обновит список пазлов.</p></div>';
       return;
     }
 
     data.forEach((item, idx) => {
-      const card = document.createElement('button');
-      card.type = 'button';
+      const card = document.createElement('div');
       card.className = 'puzzle-card';
+      card.dataset.index = idx;
       card.innerHTML = `
         <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" class="puzzle-card-image">
-        <div class="puzzle-card-body">
-          <div class="puzzle-card-title">${escapeHtml(item.title)}</div>
-          <div class="puzzle-card-sub">${escapeHtml(item.theme || 'Библейский пазл')}</div>
-        </div>`;
+        <div class="puzzle-card-title">${escapeHtml(item.title)}</div>`;
       card.addEventListener('click', () => {
         hSelect();
         pickPuzzle(idx);
@@ -143,6 +140,23 @@
       referenceEl.alt = activePuzzle.title || 'Пазл';
     }
     captionEl.textContent = activePuzzle.caption || activePuzzle.theme || '';
+
+    // Подсветка активной карточки
+    document.querySelectorAll('.puzzle-card').forEach(c => c.classList.remove('active'));
+    const activeCard = document.querySelector(`.puzzle-card[data-index="${idx}"]`);
+    if (activeCard) activeCard.classList.add('active');
+
+    // Предзагрузка картинки и определение правильных пропорций для доски
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.naturalWidth / img.naturalHeight;
+      const wrap = document.querySelector('.puzzle-stage-wrap');
+      if (wrap) {
+        wrap.style.setProperty('--board-ratio', ratio.toString());
+      }
+    };
+    img.src = activePuzzle.image;
+
     showPicker();
   }
 
@@ -157,7 +171,6 @@
     stopDrag();
     stopTimer();
     
-    // Возвращаем свайпы для главного меню
     try { 
       if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.enableVerticalSwipes(); 
@@ -194,7 +207,6 @@
       updateTrayHint(); 
     });
 
-    // Настройки Telegram Web App для экрана игры
     try { 
       if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.expand();
@@ -277,7 +289,6 @@
     const rect = sourceEl.getBoundingClientRect();
     const ghost = sourceEl.cloneNode(true);
     
-    // Копируем стили фона для призрака
     ghost.style.backgroundImage = sourceEl.style.backgroundImage;
     ghost.style.backgroundSize = sourceEl.style.backgroundSize;
     ghost.style.backgroundPosition = sourceEl.style.backgroundPosition;
