@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -45,8 +45,7 @@
           <span class="eyebrow">ПЕРВЫЙ ШАГ</span>
           <h1>Привет! Я Хранитель света</h1>
           <p class="muted">
-            Я твой проводник и помощник в изучении священного писания.
-            Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
+            Я твой проводник и помощник в изучении священного писания. Для начала давай познакомимся: укажи своё настоящее имя и дату рождения.
           </p>
         </div>
 
@@ -230,7 +229,6 @@
           <img class="mascot-img" src="assets/mascot_games.png" alt="">
           <span class="eyebrow">ПАЗЛ ИЗ КАРТИНОК</span>
           <h1>Библейский пазл</h1>
-          <p class="muted">Добавляй изображения в папку <b>assets/puzzles</b>, а игра сама подхватит их через <b>data/puzzles.json</b>.</p>
         </div>
 
         <div id="puzzle-picker-card" class="card card-soft">
@@ -245,11 +243,20 @@
         </div>
 
         <div id="puzzle-start" class="card card-soft hidden">
-          <h2>Сложность</h2>
-          <div class="menu-grid">
-            <button class="tile" type="button" data-puzzle-size="3">3 × 3</button>
-            <button class="tile" type="button" data-puzzle-size="4">4 × 4</button>
-            <button class="tile" type="button" data-puzzle-size="5">5 × 5</button>
+          <h2>Выберите сложность</h2>
+          <div class="puzzle-sizes">
+            <button class="size-btn" type="button" data-puzzle-size="3">
+              <span class="size-val">3 × 3</span>
+              <span class="size-lbl">Легко</span>
+            </button>
+            <button class="size-btn" type="button" data-puzzle-size="4">
+              <span class="size-val">4 × 4</span>
+              <span class="size-lbl">Средне</span>
+            </button>
+            <button class="size-btn" type="button" data-puzzle-size="5">
+              <span class="size-val">5 × 5</span>
+              <span class="size-lbl">Сложно</span>
+            </button>
           </div>
           <div id="puzzle-caption" class="muted center" style="margin-top: 10px;"></div>
           <div class="action-row">
@@ -298,7 +305,7 @@
 
       <section id="screen-admin" class="screen hidden" data-route="admin">
         <div class="screen-header">
-          <span class="eyebrow">УПРАВЛЕНИЕ</span>
+           <span class="eyebrow">УПРАВЛЕНИЕ</span>
           <h1>Админ-панель</h1>
           <p class="muted">Быстрый поиск пользователей и редактирование звёзд.</p>
         </div>
@@ -382,7 +389,7 @@
 
   <script src="games/match.js?v=2" defer></script>
   <script src="games/word.js?v=2" defer></script>
-  <script src="games/puzzle.js?v=2" defer></script>
+  <script src="games/puzzle.js?v=3" defer></script>
   <script src="app.js?v=4" defer></script>
 </body>
 </html>
