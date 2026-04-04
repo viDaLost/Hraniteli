@@ -22,7 +22,6 @@
   --shadow-sm: 0 10px 24px rgba(88, 57, 33, 0.06);
   --shadow-md: 0 16px 42px rgba(88, 57, 33, 0.10);
   --shadow-btn: 0 10px 24px rgba(142, 106, 75, 0.28);
-
   --font: "Inter", -apple-system, "SF Pro Display", "Segoe UI", sans-serif;
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
@@ -313,22 +312,98 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* ===== PUZZLE MENU & PICKER ===== */
 .puzzle-picker-head { display: grid; grid-template-columns: 1fr 96px; gap: 14px; align-items: center; margin-bottom: 16px; }
-.puzzle-preview, .puzzle-finish-image, .puzzle-reference { width: 96px; height: 96px; object-fit: cover; border-radius: 18px; border: 1px solid rgba(45,41,38,.08); box-shadow: var(--shadow-sm); background: #fff; }
+.puzzle-preview, .puzzle-finish-image, .puzzle-reference { 
+  width: 96px; 
+  height: 96px; 
+  object-fit: contain; 
+  border-radius: 18px; 
+  border: 1px solid rgba(45,41,38,.08); 
+  box-shadow: var(--shadow-sm); 
+  background: rgba(0,0,0,0.03); 
+}
 .puzzle-finish-image { width: 180px; height: 180px; margin: 0 auto 14px; }
-.puzzle-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
-.puzzle-card { border: 1px solid rgba(45,41,38,.08); background: rgba(255,255,255,.9); border-radius: 22px; padding: 10px; display: grid; grid-template-columns: 84px 1fr; gap: 12px; align-items: center; text-align: left; font: inherit; color: inherit; box-shadow: var(--shadow-sm); cursor: pointer; }
-.puzzle-card-image { width: 84px; height: 84px; object-fit: cover; border-radius: 16px; }
-.puzzle-card-title { font-size: 17px; font-weight: 800; margin-bottom: 4px; }
-.puzzle-card-sub { color: var(--muted); font-size: 13px; }
 
-/* ===== PUZZLE GAMEPLAY (NEW FLEX LAYOUT) ===== */
-#screen-puzzle.puzzle-playing {
-  padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 12px);
-  overflow: hidden; /* Блокируем скролл всего экрана */
-  touch-action: none; /* Запрещаем жесты браузера */
+.puzzle-list { 
+  display: grid; 
+  grid-template-columns: repeat(2, 1fr); 
+  gap: 12px; 
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.puzzle-card { 
+  display: flex; 
+  flex-direction: column;
+  align-items: center;
+  border: 2px solid transparent; 
+  background: rgba(255,255,255,.9); 
+  border-radius: 18px; 
+  padding: 8px; 
+  gap: 8px; 
+  text-align: center; 
+  box-shadow: var(--shadow-sm); 
+  cursor: pointer; 
+  transition: all 0.2s;
+}
+.puzzle-card.active {
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(142,106,75,0.25);
+  transform: translateY(-2px);
+}
+.puzzle-card-image { 
+  width: 100%; 
+  height: 90px; 
+  object-fit: contain; 
+  border-radius: 12px; 
+  background: rgba(0,0,0,0.02);
+}
+.puzzle-card-title { font-size: 14px; font-weight: 800; line-height: 1.2; }
+.puzzle-card-sub { display: none; }
+
+/* Улучшенные кнопки сложности */
+.puzzle-sizes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.size-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #fff, #f4f0e8);
+  border: 2px solid rgba(142,106,75,0.2);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.size-btn:active {
+  transform: scale(0.95);
+}
+.size-val {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+.size-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 4px;
+  text-transform: uppercase;
 }
 
-/* ОЧЕНЬ ВАЖНО: Скрываем меню, когда игра запущена, чтобы поле не плющило */
+/* ===== PUZZLE GAMEPLAY ===== */
+#screen-puzzle.puzzle-playing {
+  padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 12px);
+  overflow: hidden; 
+  touch-action: none;
+}
+
 #screen-puzzle.puzzle-playing #puzzle-header,
 #screen-puzzle.puzzle-playing .screen-header,
 #screen-puzzle.puzzle-playing #puzzle-picker-card,
@@ -377,25 +452,25 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 }
 
 .puzzle-playfield {
-  flex: 1 1 0; /* Растягивается на всё доступное место */
+  flex: 1 1 0; 
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px;
   margin: 0;
   border-radius: 20px;
-  min-height: 0; /* Обязательно для Flex, чтобы не выпирало */
+  min-height: 0;
 }
 
 .puzzle-stage-wrap {
   position: relative;
-  height: 100%; /* Берем всю доступную высоту... */
-  max-height: calc(100vw - 32px); /* ...но не даем быть больше ширины экрана, чтобы не вылезти за края */
-  aspect-ratio: 1 / 1; /* Жестко сохраняем квадратные пропорции */
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  aspect-ratio: var(--board-ratio, 1 / 1); /* Динамически подстраивается под картинку */
   margin: 0 auto;
 }
 
-/* СЕТКА ПАЗЛА: Без дырок и скруглений для монолитного изображения */
 .puzzle-board {
   --puzzle-size: 3;
   position: absolute;
@@ -405,21 +480,20 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   display: grid;
   grid-template-columns: repeat(var(--puzzle-size), 1fr);
   grid-template-rows: repeat(var(--puzzle-size), 1fr);
-  gap: 0; /* Убрал 4px для бесшовности */
-  background: rgba(0,0,0,0.05); /* Легкий фон-подложка */
+  gap: 0;
+  background: rgba(0,0,0,0.05); 
   box-shadow: var(--shadow-md);
   border-radius: 12px;
-  overflow: hidden; /* Срезаем углы у собранной доски */
+  overflow: hidden;
   transition: opacity 0.3s ease;
 }
 
 .puzzle-slot {
   position: relative;
-  background: rgba(255,255,255,0.4); /* Пустой слот */
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); /* Легкая сетка */
+  background: rgba(255,255,255,0.4);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
 }
 
-/* Детали пазла */
 .puzzle-piece {
   width: 100%;
   height: 100%;
@@ -427,12 +501,12 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   background-color: #efe5d8;
   background-repeat: no-repeat;
   touch-action: none;
-  border-radius: 12px; /* Скругление только в лотке */
+  border-radius: 12px; 
   box-shadow: 0 4px 12px rgba(88,57,33,.15);
 }
 
 .puzzle-piece.locked {
-  border-radius: 0 !important; /* На доске деталь квадратная! */
+  border-radius: 0 !important; 
   box-shadow: none !important;
   border: none !important;
 }
@@ -453,13 +527,12 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   inset: 0;
   width: 100%;
   height: 100%;
-  background-size: cover;
+  background-size: 100% 100%; /* Идеально ложится так как контейнер подстроен под картинку */
   background-position: center;
   border-radius: 12px;
   pointer-events: none;
 }
 
-/* ЛОТОК ВНИЗУ */
 .puzzle-tray-shell {
   flex: 0 0 auto;
   display: flex;
@@ -479,7 +552,7 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .puzzle-tray {
   display: grid;
   grid-auto-flow: column;
-  grid-template-rows: repeat(2, 64px); /* Два ряда по 64px */
+  grid-template-rows: repeat(2, 64px);
   grid-auto-columns: 64px;
   gap: 8px;
   overflow-x: auto;
