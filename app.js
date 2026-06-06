@@ -1125,15 +1125,36 @@ $("btn-admin").addEventListener("click", openAdmin);
 $("btn-admin-back").addEventListener("click", () => navigate("menu"));
 
 $("btn-admin-save-homework").addEventListener("click", async () => {
-  $("admin-homework-msg").textContent = "Сохранение...";
+  const notify = !!$("admin-homework-notify")?.checked;
+  const msg = $("admin-homework-msg");
+  const btn = $("btn-admin-save-homework");
+  const prevText = btn.textContent;
+
+  msg.textContent = notify ? "Сохранение и отправка уведомлений..." : "Сохранение без уведомления...";
+  btn.disabled = true;
+  btn.textContent = "Загрузка…";
+
   try {
-    await apiFast("adminSetHomework", { homework_text: $("admin-homework").value }, { force: true });
+    const result = await apiFast(
+      "adminSetHomework",
+      { homework_text: $("admin-homework").value, notify },
+      { force: true }
+    );
     clearMemCache("getHomework::");
-    $("admin-homework-msg").textContent = "Сохранено ✅";
+
+    if (notify && result?.notified) {
+      msg.textContent = `Сохранено ✅ Уведомлений отправлено: ${result.notified.sent || 0}. Ошибок: ${result.notified.failed || 0}.`;
+    } else {
+      msg.textContent = "Сохранено ✅ Без рассылки.";
+    }
+
     hNotify("success");
   } catch(e){
-    $("admin-homework-msg").textContent = "Ошибка: " + e.message;
+    msg.textContent = "Ошибка: " + e.message;
     hNotify("error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevText;
   }
 });
 
