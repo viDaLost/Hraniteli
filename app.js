@@ -39,6 +39,7 @@ if (tg) tg.expand();
     { passive: false }
   );
 
+
   document.addEventListener(
     "dragstart",
     (e) => {
@@ -61,7 +62,6 @@ const screens = {
   games: $("screen-games"),
   match: $("screen-match"),
   word: $("screen-word"),
-  puzzle: $("screen-puzzle"),
   admin: $("screen-admin"),
 };
 
@@ -343,6 +343,11 @@ function hasLocalProfile(){
 function setCachedProfile(p){
   state.isAdmin = !!p.isAdmin;
 
+  if (p.profile?.account_id && p.profile.account_id !== state.accountId) {
+    state.accountId = p.profile.account_id;
+    setActiveAccountId(state.accountId);
+  }
+
   const localIdentity = getCurrentAccountRecord();
   const serverProfile = p.profile || {};
   state.profile = {
@@ -510,7 +515,7 @@ window.addEventListener("popstate", () => {
   onRouteEnter(r);
 });
 
-let gamesInited = { match: false, word: false, puzzle: false };
+let gamesInited = { match: false, word: false };
 
 function onRouteEnter(route){
   hideModal(modalHomework);
@@ -538,11 +543,6 @@ function onRouteEnter(route){
   if (route === "word" && !gamesInited.word) {
     window.WordGame?.init?.({ hImpact, hNotify, hSelect });
     gamesInited.word = true;
-  }
-
-  if (route === "puzzle" && !gamesInited.puzzle) {
-    window.PuzzleGame?.init?.({ hImpact, hNotify, hSelect });
-    gamesInited.puzzle = true;
   }
 }
 
@@ -813,6 +813,12 @@ async function boot(){
   }
 
   ensureLegacyAccountMigrated();
+
+  if (!getStoredAccounts().length && !getActiveAccountId()) {
+    state.accountId = "main";
+    setActiveAccountId("main");
+  }
+
   seedStateFromActiveAccount();
 
   const cached = getCachedProfile();
@@ -1020,11 +1026,7 @@ function renderAdminUsers(users){
       msg.textContent = "⏳ Сохранение...";
 
       try {
-        await apiFast(
-          "adminUpdateStars",
-          { tg_id: u.tg_id, account_id: u.account_id, bible, truth, behavior },
-          { force: true }
-        );
+        await apiFast("adminUpdateStars", { tg_id: u.tg_id, account_id: u.account_id, bible, truth, behavior }, { force: true });
         clearMemCache("adminListUsers::");
         msg.textContent = "✅ Сохранено";
         msg.style.color = "var(--primary-dark)";
@@ -1125,36 +1127,21 @@ $("btn-admin").addEventListener("click", openAdmin);
 $("btn-admin-back").addEventListener("click", () => navigate("menu"));
 
 $("btn-admin-save-homework").addEventListener("click", async () => {
-  const notify = !!$("admin-homework-notify")?.checked;
-  const msg = $("admin-homework-msg");
-  const btn = $("btn-admin-save-homework");
-  const prevText = btn.textContent;
-
-  msg.textContent = notify ? "Сохранение и отправка уведомлений..." : "Сохранение без уведомления...";
-  btn.disabled = true;
-  btn.textContent = "Загрузка…";
-
+  $("admin-homework-msg").textContent = "Сохранение...";
   try {
-    const result = await apiFast(
-      "adminSetHomework",
-      { homework_text: $("admin-homework").value, notify },
-      { force: true }
-    );
+    const notifyEl = $("admin-homework-notify") || $("admin-notify-users") || $("admin-send-notify");
+    const notifyUsers = notifyEl ? !!notifyEl.checked : false;
+    await apiFast("adminSetHomework", {
+      homework_text: $("admin-homework").value,
+      notify_users: notifyUsers,
+      notify: notifyUsers
+    }, { force: true });
     clearMemCache("getHomework::");
-
-    if (notify && result?.notified) {
-      msg.textContent = `Сохранено ✅ Уведомлений отправлено: ${result.notified.sent || 0}. Ошибок: ${result.notified.failed || 0}.`;
-    } else {
-      msg.textContent = "Сохранено ✅ Без рассылки.";
-    }
-
+    $("admin-homework-msg").textContent = "Сохранено ✅";
     hNotify("success");
   } catch(e){
-    msg.textContent = "Ошибка: " + e.message;
+    $("admin-homework-msg").textContent = "Ошибка: " + e.message;
     hNotify("error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = prevText;
   }
 });
 

@@ -46,8 +46,20 @@ function doPost(e) {
     const body = JSON.parse(raw || '{}');
 
     // Telegram присылает update без поля action.
-    if (!body.action && (body.update_id || body.message || body.edited_message || body.callback_query)) {
-      handleTelegramUpdate_(body);
+    // Важно: Telegram повторяет один и тот же update, если webhook не успел корректно ответить.
+    // Поэтому сначала быстро отсекаем дубликаты по update_id, а ошибки обработчика логируем,
+    // чтобы Telegram всегда получил 200 OK и не начал спамить одной командой.
+    if (isTelegramUpdate_(body)) {
+      if (!markTelegramUpdateOnce_(body.update_id)) {
+        return json_({ ok: true, skipped: 'duplicate_update' });
+      }
+
+      try {
+        handleTelegramUpdate_(body);
+      } catch (telegramErr) {
+        Logger.log('Telegram handler error: ' + String(telegramErr && telegramErr.stack ? telegramErr.stack : telegramErr));
+      }
+
       return json_({ ok: true });
     }
 
@@ -91,7 +103,8 @@ function doPost(e) {
       case 'adminSetHomework': {
         if (!isAdmin) throw new Error('Нет доступа');
         const text = String(body.homework_text || '');
-        const shouldNotify = body.notify === true || body.notify === 'true' || body.notify === 1 || body.notify === '1';
+        const shouldNotify = body.notify === true || body.notify === 'true' || body.notify === 1 || body.notify === '1' ||
+          body.notify_users === true || body.notify_users === 'true' || body.notify_users === 1 || body.notify_users === '1';
         setHomework_(text, tgId);
 
         let notifyResult = null;
@@ -609,20 +622,89 @@ function escapeHtml_(s) {
 }
 
 /****************************************
+ * TELEGRAM UPDATE DEDUPE
+ ****************************************/
+function isTelegramUpdate_(body) {
+  return !!(
+    body &&
+    body.update_id !== undefined &&
+    (body.message || body.edited_message || body.callback_query)
+  );
+}
+
+function markTelegramUpdateOnce_(updateId) {
+  if (updateId === undefined || updateId === null || updateId === '') return true;
+
+  const key = 'tg_update_' + String(updateId);
+  const lock = LockService.getScriptLock();
+
+  try {
+    lock.tryLock(1000);
+
+    const cache = CacheService.getScriptCache();
+    if (cache.get(key)) return false;
+
+    cache.put(key, '1', 21600); // 6 часов
+    return true;
+  } catch (err) {
+    Logger.log('markTelegramUpdateOnce_ error: ' + String(err));
+    return true;
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/****************************************
  * TELEGRAM WEBHOOK SETUP HELPERS
  ****************************************/
 function setTelegramWebhook() {
-  const url = ScriptApp.getService().getUrl();
-  if (!url) throw new Error('Сначала задеплой Web App, затем запусти setTelegramWebhook');
-  return telegramApi_('setWebhook', { url: url, drop_pending_updates: true });
+  const scriptUrl = PropertiesService
+    .getScriptProperties()
+    .getProperty('SCRIPT_WEBAPP_URL');
+
+  if (!scriptUrl) {
+    throw new Error('Не задан SCRIPT_WEBAPP_URL в Script Properties');
+  }
+
+  if (!/^https:\/\/.+/i.test(scriptUrl)) {
+    throw new Error('SCRIPT_WEBAPP_URL должен быть HTTPS-ссылкой. Сейчас указано: ' + scriptUrl);
+  }
+
+  const result = telegramApi_('setWebhook', {
+    url: scriptUrl,
+    drop_pending_updates: true
+  });
+
+  Logger.log(JSON.stringify(result));
+  return result;
 }
 
 function deleteTelegramWebhook() {
-  return telegramApi_('deleteWebhook', { drop_pending_updates: true });
+  const result = telegramApi_('deleteWebhook', {
+    drop_pending_updates: true
+  });
+
+  Logger.log(JSON.stringify(result));
+  return result;
 }
 
 function getTelegramWebhookInfo() {
-  return telegramApi_('getWebhookInfo', {});
+  const token = PropertiesService
+    .getScriptProperties()
+    .getProperty('BOT_TOKEN');
+
+  if (!token) {
+    throw new Error('Не задан BOT_TOKEN');
+  }
+
+  const url = 'https://api.telegram.org/bot' + token + '/getWebhookInfo';
+  const res = UrlFetchApp.fetch(url, {
+    muteHttpExceptions: true
+  });
+
+  const text = res.getContentText();
+  Logger.log(text);
+  return text;
 }
 
 function installBirthdayTrigger() {
@@ -915,24 +997,49 @@ function upsertUser_(tgId, accountId, name, dob) {
 function getUser_(tgId, accountId) {
   const sh = usersSheet_();
   const h = getUsersHeaderMap_(sh);
-  const rowIndex = findUserRowByIdentity_(sh, tgId, accountId);
 
-  if (rowIndex === -1) {
-    return {
-      tg_id: String(tgId),
-      account_id: String(accountId),
-      name: '',
-      dob: '',
-      bible: 0,
-      truth: 0,
-      behavior: 0,
-      bot_chat_id: '',
-      bot_notifications: true
-    };
+  const safeTgId = String(tgId || '').trim();
+  const safeAccountId = normalizeAccountId_(accountId);
+
+  // 1. Сначала ищем точное совпадение tg_id + account_id.
+  let rowIndex = findUserRowByIdentity_(sh, safeTgId, safeAccountId);
+
+  if (rowIndex !== -1) {
+    const row = sh.getRange(rowIndex, 1, 1, sh.getLastColumn()).getValues()[0];
+    return rowToUser_(row, h);
   }
 
-  const row = sh.getRange(rowIndex, 1, 1, sh.getLastColumn()).getValues()[0];
-  return rowToUser_(row, h);
+  // 2. Совместимость со старыми пользователями:
+  // если профиля с новым account_id нет, ищем старую запись только по tg_id.
+  const rows = sh.getDataRange().getValues();
+
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][h.tg_id]) === safeTgId) {
+      const legacyRowIndex = i + 1;
+
+      if (!rows[i][h.account_id]) {
+        sh.getRange(legacyRowIndex, h.account_id + 1).setValue(DEFAULT_ACCOUNT_ID);
+        rows[i][h.account_id] = DEFAULT_ACCOUNT_ID;
+      }
+
+      const user = rowToUser_(rows[i], h);
+      user.account_id = String(user.account_id || DEFAULT_ACCOUNT_ID);
+      return user;
+    }
+  }
+
+  // 3. Пользователя действительно нет.
+  return {
+    tg_id: safeTgId,
+    account_id: safeAccountId || DEFAULT_ACCOUNT_ID,
+    name: '',
+    dob: '',
+    bible: 0,
+    truth: 0,
+    behavior: 0,
+    bot_chat_id: '',
+    bot_notifications: true
+  };
 }
 
 function listUsers_() {
