@@ -225,6 +225,31 @@ function handleTelegramUpdate_(update) {
         return;
       }
 
+      case '/send':
+      case '/notify':
+      case '/broadcast':
+      case '/announce': {
+        if (!isAdmin) {
+          sendTelegramMessage_(chatId, '⛔ Команда доступна только администраторам.');
+          return;
+        }
+
+        const broadcastText = String(parsed.args || '').trim();
+        if (!broadcastText) {
+          sendTelegramMessage_(chatId, getBroadcastUsageText_());
+          return;
+        }
+
+        const message = buildAdminBroadcastMessage_(broadcastText, getDisplayNameFromTelegramUser_(from));
+        const result = sendBroadcast_(message, { kind: 'admin_broadcast' });
+
+        sendTelegramMessage_(
+          chatId,
+          '✅ Уведомление отправлено.\nПолучили: ' + result.sent + '. Ошибок: ' + result.failed + '.'
+        );
+        return;
+      }
+
       case '/birthday_on':
       case '/birthdays_on': {
         if (!isAdmin) return sendTelegramMessage_(chatId, '⛔ Команда доступна только администраторам.');
@@ -332,6 +357,30 @@ function getDzUsageText_() {
   ].join('\n');
 }
 
+function getBroadcastUsageText_() {
+  return [
+    'Команда для общей рассылки:',
+    '',
+    '<code>/send текст уведомления</code>',
+    '',
+    'Пример:',
+    '<code>/send Завтра занятие начнётся в 11:00. Не забудьте тетради 📖</code>'
+  ].join('\n');
+}
+
+function buildAdminBroadcastMessage_(text, adminName) {
+  const raw = String(text || '').trim();
+  const safeText = raw.length > 3500 ? raw.slice(0, 3500) + '…' : raw;
+  const by = adminName ? '\nОтправил: <b>' + escapeHtml_(adminName) + '</b>' : '';
+
+  return [
+    '📣 <b>Уведомление</b>',
+    by,
+    '',
+    escapeHtml_(safeText)
+  ].join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 function getBotHelpText_(isAdmin) {
   const base = [
     '✨ <b>Хранитель света</b>',
@@ -352,6 +401,7 @@ function getBotHelpText_(isAdmin) {
       '/dz --notify текст — поменять и отправить уведомление',
       '/dz_on — включить рассылку для /dz по умолчанию',
       '/dz_off — выключить рассылку для /dz по умолчанию',
+      '/send текст — отправить любое уведомление всем пользователям',
       '/birthdays — показать сегодняшние дни рождения',
       '/birthday_check — проверить дни рождения и отправить уведомление',
       '/birthday_on — включить автоуведомления о днях рождения',
