@@ -1,7 +1,7 @@
 // app.js
 // SPA + Telegram WebApp + local account slots + admin search fixes
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwbhxL3Z3tuSr5CixF6jrHZV1mcd8K4ZWQlJ60lW7wHwmMm_dqt_Pnz2uqXmQEDFUs/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwV4QDGJwd1VZ9Uv4_lCJHGinRdlv6VGSIbgIbWEHN2i239FZJIqFXOtrN4BehRK2g7/exec";
 const POLL_MS = 10_000;
 
 const CACHE_TTL = {
